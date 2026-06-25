@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capitalist Apocalypse — Two-Player</title>
+<style>
+  :root{
+    --ink:#1a1410; --paper:#efe7d6; --paper-deep:#e2d6bd; --paper-hi:#f7f1e3;
+    --gold:#c9a227; --vermilion:#c8462f; --teal:#2f6f6a; --shadow:rgba(26,20,16,0.28);
+    --line:rgba(26,20,16,0.25);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;
+    background:radial-gradient(circle at 20% 8%, #2a2018 0%, #15100c 60%, #0d0907 100%);
+    color:var(--paper); min-height:100vh; padding:14px 12px 40px;
+  }
+  h1{
+    font-family:"EB Garamond",Garamond,"Times New Roman",serif; font-weight:900;
+    letter-spacing:-1px; line-height:.92; text-transform:uppercase;
+    font-size:clamp(22px,5.5vw,38px); text-align:center;
+  }
+  h1 .stamp{display:inline-block;color:var(--vermilion);border:3px solid var(--vermilion);
+    padding:0 8px;transform:rotate(-3deg);border-radius:4px;}
+  .tagline{text-align:center;font-size:11px;letter-spacing:3px;text-transform:uppercase;opacity:.6;margin-top:6px;}
+  .wrap{max-width:980px;margin:0 auto;}
+
+  /* ===== generic buttons ===== */
+  button{font-family:inherit;cursor:pointer;}
+  .btn{font-size:12px;letter-spacing:1px;text-transform:uppercase;padding:10px 16px;border:none;
+    border-radius:9px;color:var(--ink);background:var(--paper-deep);
+    box-shadow:0 4px 0 rgba(0,0,0,.3);transition:transform .08s,box-shadow .08s,opacity .15s;}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.3);}
+  .btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px;}
+  .btn.primary{background:var(--vermilion);color:var(--paper);}
+  .btn.gold{background:var(--gold);}
+  .btn.ghost{background:transparent;border:1px solid var(--gold);color:var(--paper);box-shadow:none;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:0 4px 0 rgba(0,0,0,.15);}
+
+  /* ===== overlay screens (setup / pass / counter / gameover) ===== */
+  .screen{position:fixed;inset:0;background:rgba(13,9,7,.92);display:flex;align-items:center;
+    justify-content:center;padding:24px;z-index:50;text-align:center;}
+  .screen .panel{max-width:520px;width:100%;}
+  .screen h2{font-family:"EB Garamond",Garamond,serif;font-weight:900;text-transform:uppercase;
+    font-size:clamp(20px,5vw,32px);margin-bottom:10px;letter-spacing:-.5px;}
+  .screen p{opacity:.85;line-height:1.5;margin-bottom:16px;font-size:14px;}
+  .screen .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .hidden{display:none!important;}
+
+  .gov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:16px 0;}
+  .gov-grid .pick{background:var(--paper);color:var(--ink);border-radius:8px;padding:10px 6px;border:1px solid var(--line);}
+  .gov-grid .pick .num{font-size:18px;font-weight:900;color:var(--vermilion);}
+  .gov-grid .pick .nm{font-size:11px;text-transform:uppercase;letter-spacing:1px;}
+  .die{font-size:46px;line-height:1;margin:6px;}
+
+  /* ===== top status bar ===== */
+  .statusbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;margin:12px 0;}
+  .pill{font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:6px 10px;border-radius:999px;
+    background:rgba(201,162,39,.18);border:1px solid var(--gold);white-space:nowrap;}
+  .pill b{color:var(--gold);}
+  .pill.hp{background:rgba(138,28,74,.25);border-color:#8a1c4a;}
+  .pill.danger{background:rgba(200,70,47,.25);border-color:var(--vermilion);}
+
+  /* ===== board layout ===== */
+  .board{display:grid;grid-template-columns:1fr;gap:12px;}
+  .seat{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:12px;}
+  .seat.active{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,162,39,.25);}
+  .seat-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;}
+  .seat-head .who{font-family:"EB Garamond",Garamond,serif;font-weight:900;font-size:18px;text-transform:uppercase;}
+  .seat-head .score{font-size:13px;text-align:right;}
+  .seat-head .score b{font-size:20px;color:var(--gold);display:block;}
+  .seat-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;opacity:.55;margin:8px 0 6px;}
+
+  /* card rows */
+  .cardrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;min-height:8px;}
+  .cardrow:empty::after{content:"— empty —";opacity:.4;font-size:12px;font-style:italic;}
+
+  /* mini cards */
+  .mini{flex:0 0 auto;width:118px;background:var(--paper);color:var(--ink);border-radius:10px;
+    padding:9px 9px 8px;position:relative;border:1px solid rgba(0,0,0,.15);
+    box-shadow:0 6px 14px var(--shadow);}
+  .mini.playable{cursor:pointer;transition:transform .1s,box-shadow .1s;}
+  .mini.playable:hover{transform:translateY(-4px);box-shadow:0 12px 22px var(--shadow);}
+  .mini.playable:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .mini .badge{font-size:8px;letter-spacing:1px;text-transform:uppercase;padding:2px 6px;border-radius:999px;color:var(--paper);display:inline-block;}
+  .mini .nm{font-family:"EB Garamond",Garamond,serif;font-weight:900;line-height:1;margin:6px 0 3px;font-size:14px;}
+  .mini .val{font-size:13px;font-weight:bold;}
+  .mini .sub{font-size:9px;letter-spacing:1px;text-transform:uppercase;opacity:.6;margin-bottom:3px;}
+  .mini .usp{font-size:9.5px;line-height:1.25;opacity:.8;margin-top:4px;border-top:1px solid var(--line);padding-top:4px;max-height:62px;overflow:auto;}
+  .mini .qty{position:absolute;top:8px;right:9px;font-size:8px;opacity:.5;letter-spacing:1px;}
+  .mini .art{width:100%;height:48px;margin:6px 0 2px;border-radius:6px;border:1px solid var(--line);
+    background-size:cover;background-position:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);
+    filter:saturate(.92) contrast(1.04);}
+  .mini.face-down{background:repeating-linear-gradient(45deg,#5a4632,#5a4632 6px,#6a543c 6px,#6a543c 12px);
+    color:var(--paper);display:flex;align-items:center;justify-content:center;height:150px;}
+  .mini.face-down span{transform:rotate(-12deg);border:2px solid var(--gold);color:var(--gold);
+    border-radius:4px;padding:2px 6px;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+  .sizebar{display:flex;gap:2px;margin:5px 0;}
+  .sizebar .s{flex:1;text-align:center;font-size:8px;padding:2px 0;border:1px solid var(--line);border-radius:3px;opacity:.55;}
+  .sizebar .s.on{background:var(--ink);color:var(--paper);opacity:1;}
+
+  /* action dock */
+  .dock{position:sticky;bottom:0;background:rgba(13,9,7,.96);border-top:1px solid var(--line);
+    padding:12px;margin:14px -12px -40px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center;}
+  .dock .acts{font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.7;}
+  .dock .acts b{color:var(--gold);font-size:16px;}
+
+  /* log */
+  .log{background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:10px;padding:8px 12px;
+    max-height:120px;overflow:auto;font-size:12px;line-height:1.5;}
+  .log .ev{padding:2px 0;border-bottom:1px dashed rgba(255,255,255,.08);}
+  .log .ev:last-child{border-bottom:none;}
+  .log .tag{color:var(--gold);}
+
+  /* modal chooser */
+  .modal{position:fixed;inset:0;background:rgba(13,9,7,.9);z-index:60;display:flex;align-items:center;justify-content:center;padding:18px;}
+  .modal .box{background:var(--paper);color:var(--ink);border-radius:14px;padding:18px;max-width:560px;width:100%;max-height:86vh;overflow:auto;}
+  .modal h3{font-family:"EB Garamond",Garamond,serif;text-transform:uppercase;font-size:18px;margin-bottom:4px;}
+  .modal .desc{font-size:13px;opacity:.75;margin-bottom:12px;line-height:1.4;}
+  .opts{display:flex;flex-direction:column;gap:8px;}
+  .opt{text-align:left;background:var(--paper-hi);border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    font-size:13px;color:var(--ink);transition:background .1s;}
+  .opt:hover{background:var(--paper-deep);}
+  .opt b{display:block;font-size:14px;}
+  .opt small{opacity:.7;}
+  .modal .modal-foot{margin-top:14px;display:flex;justify-content:flex-end;gap:8px;}
+  .modal .btn{color:var(--ink);}
+
+  details.rules{margin:10px 0;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:10px;padding:8px 12px;}
+  details.rules summary{cursor:pointer;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);}
+  details.rules div{font-size:12px;line-height:1.55;opacity:.85;margin-top:8px;}
+  @media(min-width:760px){.board{gap:14px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Capitalist <span class="stamp">Apocalypse</span></h1>
+  <div class="tagline">Own everything · end the world</div>
+
+  <div id="game" class="hidden">
+    <div id="statusbar" class="statusbar"></div>
+    <div id="board" class="board"></div>
+    <div class="seat-label" style="margin-top:14px">Table log</div>
+    <div id="log" class="log"></div>
+    <details class="rules"><summary>House rules &amp; interpretations</summary><div id="rulesText"></div></details>
+    <div id="dock" class="dock"></div>
+  </div>
+</div>
+
+<!-- ===== SETUP SCREEN ===== -->
+<div id="setupScreen" class="screen">
+  <div class="panel">
+    <h2>Form the world</h2>
+    <p>Two corporate dynasties. One collapsing economy. Roll to see which government the world wakes up under.</p>
+    <div class="gov-grid" id="govGrid"></div>
+    <div class="die" id="setupDie">🎲</div>
+    <div class="row">
+      <button class="btn primary" id="rollGovBtn">Roll for government</button>
+      <button class="btn gold hidden" id="startGameBtn">Begin</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PASS SCREEN ===== -->
+<div id="passScreen" class="screen hidden">
+  <div class="panel">
+    <h2 id="passTitle">Pass the device</h2>
+    <p id="passSub">Hand over to the next player, then reveal.</p>
+    <button class="btn primary" id="revealBtn">Reveal my turn</button>
+  </div>
+</div>
+
+<!-- ===== COUNTER PROMPT SCREEN ===== -->
+<div id="counterScreen" class="screen hidden">
+  <div class="panel">
+    <h2 id="counterTitle">A response is possible</h2>
+    <p id="counterSub"></p>
+    <div class="row">
+      <button class="btn primary" id="counterViewBtn">View my cards</button>
+      <button class="btn ghost" id="counterDeclineBtn">Let it stand</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GAME OVER ===== -->
+<div id="overScreen" class="screen hidden">
+  <div class="panel">
+    <h2 id="overTitle">Capitalist Apocalypse</h2>
+    <p id="overSub"></p>
+    <div id="overScores" style="margin-bottom:16px"></div>
+    <button class="btn primary" onclick="location.reload()">New world</button>
+  </div>
+</div>
+
+<!-- modal mount -->
+<div id="modalMount"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   CARD DATA  (sourced from Capitalist Apocalypse design doc)
+   ============================================================ */
+const GOVS = ["Theocracy","Dictatorship","Democracy","Communism","Monarchy","Anarchy"];
+const GOV_TEXT = {
+  Theocracy:"No rule, all worship a divine presence. When it takes power, every player draws a Higher Power card.",
+  Dictatorship:"The instigator rules and takes one random card from an opponent's hand at the start of each of their turns.",
+  Democracy:"The ruler may draw up to 3 cards and resize one organisation once per turn.",
+  Communism:"All organisations (in play and in hand) are pooled and shared evenly. RAIL CHOO CHOO flips positive; WOODOO'S halves; Great Health Service doubles.",
+  Monarchy:"The ruler may freely pick card types. M. Smooth's value ×5; Mrs. Stone merges free.",
+  Anarchy:"No rulers. Every takeover yields nothing extra here (1-for-1) but mergers are forbidden. NEF value ×5."
+};
+const HP = [
+  ["Cryptodisaster","All tech companies become worthless."],
+  ["Mass Robot Uprising","Tech sector counts as every sector (gains all sector bonuses & merges)."],
+  ["Sea Rise","The world is underwater. No effect alone, but enables Dolphins; some USPs react."],
+  ["Encounter of the Third Kind","Aliens. Wellbeing companies grow to Giant size."],
+  ["Electrobrainwash","Government can no longer be changed while in play."],
+  ["Big Burn","Value of the public sector doubles."],
+  ["Big Freeze","The world is frozen. No organisation cards can be played."],
+  ["Capitalist Apocalypse","End game immediately."],
+  ["False Idol","Forces Theocracy; government cannot change while in play."],
+  ["Dolphins","If the world is underwater, dolphins take over — game ends after one more turn."],
+  ["Return of the Dinosaurs","Value of natural resources and perishables doubles."]
+];
+// [name, text, qty]
+const ACTIONS = [
+  ["Stock Crash","Decrease the size of a company by one level.",7],
+  ["Build Stock","Increase the size of a company by one level.",9],
+  ["Sneaky Corporate Deal","Swap a random card in your hand with a random card in your opponent's hand.",3],
+  ["Merger","Merge two organisations you own of the same type into one Giant.",6],
+  ["Hostile Takeover","Gain an organisation in your opponent's portfolio.",5],
+  ["Regular Takeover","Swap one of your organisations in play for one of your opponent's.",5],
+  ["Form An Alliance","Offer to combine portfolios with your opponent (shared value).",3],
+  ["Generous Tax Break","All organisation cards in both hands must be put into play.",3],
+  ["Absolutely Not, Mate","Roll a double to reverse any card just played. Played as a response.",3],
+  ["Lawsuit","Delay (cancel) an incoming takeover or merger. Played as a response.",2],
+  ["Break All Partnerships","End all alliances; organisations split evenly (breaker keeps majority).",1],
+  ["Force An Alliance","Force your opponent into a combined portfolio with you.",1],
+  ["Luddite Uprising","Negate Robot Uprising / Electrobrainwash / Cryptodisaster for everyone.",1],
+  ["Dr. Dolittle","Negate Dolphins / Dinosaurs / Third Kind — for you only.",1],
+  ["CEO Scandal","Reduce any Giant company to Enterprise.",1],
+  ["Dragon's Den","Force the owner of a chosen company to give it to the other player for a random hand card.",1],
+  ["It's 1929","All organisations in play drop to Start-up size.",1],
+  ["Investment Portfolio","Take up to 3 organisation cards from the draw pile.",1],
+  ["Massive Market Forces","Adam Smith's Ghost — both players swap their entire hands.",1],
+  ["Angel Investor","Take over any Start-up from your opponent.",1],
+  ["Cosmic Interference","Draw a Higher Power card from the deck into your hand.",1],
+  ["Rebellion","Choose a new government type.",1],
+  ["Break A Heart","End an alliance and decide how organisations are split.",1],
+  ["Big Coat","Negate Big Freeze — for you only. Played as a response.",1],
+  ["Rainbow Unicorn","Grow any Start-up straight to Giant.",1],
+  ["Big Sun Hat","Negate Big Burn — for you only. Played as a response.",1],
+  ["Alejandra, God Of Apocalypta","Negate False Idol for everyone. Played as a response.",1],
+  ["Independence Day","Both players roll; a double rescinds a chosen Higher Power card.",1],
+  ["The New Deal","All organisations in play rise to Giant size.",1],
+  ["Big Surfboard","Negate Sea Rise — for you only. Played as a response.",1]
+];
+// [name, type, sizeIdx, [S,E,G], merge, usp]
+const ORGS = [
+  ["Tablets 'n' That","Tech",1,["£0bn","£5bn","£50bn"],"×1","Once per game you may block a proposed merger."],
+  ["Big Ol' Oil 'n' Gas","Natural Resources",2,["£1bn","£7bn","£70bn"],"×1","Worthless under Big Freeze, Sea Rise, Big Burn or Dolphins."],
+  ["BESCO","Perishables",2,["£0.1bn","£5bn","£20bn"],"×3","Can merge with any tech company."],
+  ["Big Bloody Search, Inc.","Tech",2,["£0bn","£0bn","£100bn"],"×1","Cannot be taken over. You lose the game if it is in play during Cryptodisaster."],
+  ["Speedy Courier Plus","Services",0,["£0.1bn","£1bn","£15bn"],"×4","Can merge with all organisations."],
+  ["Fit But You Know It Gyms","Wellbeing",1,["£0.01bn","£0.5bn","£4bn"],"×5","Value ×2 under Dolphins or Third Kind."],
+  ["RAIL CHOO CHOO","Public",2,["£-5bn","£-50bn","£-100bn"],"×1","Under Communism multiply value by minus one."],
+  ["Peachy 'n' Clean","Perishables",1,["£0.01bn","£0.5bn","£5bn"],"×2","Can be freely merged with any organisation."],
+  ["Good Mind, Inc.","Wellbeing",1,["£0.01bn","£0.2bn","£3bn"],"×10","If merged with a tech organisation, merge multiplier becomes ×20."],
+  ["National Enforcement Force","Public",2,["£2bn","£50bn","£60bn"],"×0","In Anarchy, value ×5."],
+  ["H2OMG","Perishables",1,["£0.02bn","£0.5bn","£3bn"],"×10","Water World — under Big Burn, base value ×100."],
+  ["NeoMode Fashion","Services",1,["£0.5bn","£1bn","£10bn"],"×3","In Big Burn or Big Freeze, value trebles."],
+  ["Imaginary Friends","Wellbeing",0,["£0.01bn","£1bn","£15bn"],"×2","Under Robot Uprising, value ×3."],
+  ["Hydropoly","Natural Resources",1,["£0.5bn","£2bn","£15bn"],"×2","Double value under Sea Rise. Half value under Big Burn."],
+  ["Some Sort Of Social Media","Tech",1,["£0bn","£1bn","£10bn"],"×3","When merged with a services organisation, you may choose the government."],
+  ["Drugtopia","Wellbeing",2,["£0bn","£5bn","£300bn"],"×3","Resists one takeover attempt per game."],
+  ["M. Smooth's Grooming","Services",0,["£0.01bn","£0.2bn","£3bn"],"×2","Royal Seal: under Monarchy, value ×5."],
+  ["Pizza D. Action","Perishables",0,["£0.1bn","£1bn","£10bn"],"×2","Dolphins like pizza — under Dolphins, value ×5."],
+  ["Water Supply","Public",2,["£10bn","£30bn","£100bn"],"×-1","Worthless under Dolphins; merges with all in one go under Big Burn."],
+  ["Fibre 2 Fibre","Public",2,["£0.3bn","£3bn","£25bn"],"×2","Can merge only with a tech organisation."],
+  ["Golden Carrot Health Foods","Wellbeing",1,["£0.5bn","£2bn","£10bn"],"×2","Merges with a perishables organisation at ×5."],
+  ["A-Video","Tech",1,["£0.1bn","£1bn","£30bn"],"×2","Out of the game if in play during Cryptodisaster."],
+  ["WOODOO'S","Natural Resources",2,["£1bn","£4bn","£8bn"],"×2","Double value under Democracy, half under Communism."],
+  ["Globo Bank TM","Services",2,["£1bn","£10bn","£40bn"],"×1","Worthless once Cryptodisaster has been played, for the rest of the game."],
+  ["The Great Health Service","Public",2,["£8bn","£80bn","£100bn"],"×0","Doubles under Communism or after any Higher Power card (max £200bn)."],
+  ["Mrs. Stone","Natural Resources",1,["£0.05bn","£10bn","£20bn"],"×1","In a Monarchy, merges free with same type."],
+  ["Data Share, Inc.","Tech",0,["£0.01bn","£1bn","£50bn"],"×2","Out of the game if in play during Cryptodisaster."],
+  ["Space Programme","Public",0,["£1bn","£10bn","£100bn"],"×0.5","Under Third Kind, value doubles."],
+  ["Broadband, Baby!","Tech",0,["£0.5bn","£5bn","£20bn"],"×2","Can also merge with any services organisation."],
+  ["SOLAR 1000","Natural Resources",0,["£0.1bn","£1bn","£10bn"],"×3","Under Big Burn, base value ×3."],
+  ["Bill's Local News","Perishables",0,["£0.01bn","£0.1bn","£1bn"],"×10","Comrade Bill keeps it: not lost under Communism."],
+  ["Happy Pill","Wellbeing",0,["£0.01bn","£1bn","£100bn"],"×0","Blind Spot — name a player; their action cards never affect you again."],
+  ["Blue Steel","Natural Resources",0,["£0.2bn","£1bn","£10bn"],"×3","Under Mass Robot Uprising, value ×10."],
+  ["Fran's Food","Perishables",2,["£0.5bn","£5bn","£50bn"],"×2","Only takeable by a player who owns 2+ perishables."],
+  ["Globocorp TM","Services",2,["£0bn","£1bn","£50bn"],"×1","Start-up/Enterprise merged in ×2; a Giant merged in ×-1."],
+  ["Mortar & Brick Builders","Services",1,["£0bn","£0.5bn","£3bn"],"×2","If its owner holds all 5 other sectors, value ×5."]
+];
+const TYPE_COLORS={Tech:"#2f6f6a","Natural Resources":"#7a5a2e",Perishables:"#c8462f",
+  Services:"#3a5a8c",Wellbeing:"#7a3a7a",Public:"#4a4a4a","Higher Power":"#8a1c4a",Action:"#a8761c"};
+const SIZES=["Start-up","Enterprise","Giant"];
+const SECTORS=["Tech","Natural Resources","Perishables","Services","Wellbeing","Public"];
+
+/* ============================================================
+   BUILD DECK
+   ============================================================ */
+let UID=1;
+function mkAction(a){return {cat:"Action",type:"Action",name:a[0],text:a[1],qty:a[2]};}
+function mkHP(h){return {cat:"Higher Power",type:"Higher Power",name:h[0],text:h[1]};}
+function mkOrg(o){return {cat:"Organisation",type:o[1],name:o[0],sizeIdx:o[2],values:o[3],merge:o[4],usp:o[5]};}
+function buildDeck(){
+  const deck=[];
+  ACTIONS.forEach(a=>{const d=mkAction(a);for(let i=0;i<a[2];i++)deck.push(inst(d));});
+  HP.forEach(h=>deck.push(inst(mkHP(h))));
+  ORGS.forEach(o=>deck.push(inst(mkOrg(o))));
+  return deck;
+}
+function inst(def){
+  const c={uid:UID++,def,cat:def.cat,type:def.type,name:def.name};
+  if(def.cat==="Organisation"){c.size=def.sizeIdx;c.mergeBonus=1;c.takeoverResisted=false;c.tabletsUsed=false;}
+  return c;
+}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+/* ============================================================
+   CARD ART — seeded Julia-set illustrations (one per card name)
+   ============================================================ */
+const fractalCache=new Map();
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function hx(h){h=h.replace("#","");return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function lerp(a,b,t){return a+(b-a)*t;}
+function makeFractal(seed,colorHex){
+  const W=144,H=58;
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const ctx=cv.getContext("2d");
+  const img=ctx.createImageData(W,H);
+  const h=hashStr(seed);
+  // c sits on a circle near the Julia boundary → reliably attractive shapes
+  const theta=(h%1000)/1000*Math.PI*2;
+  const radius=0.62+((h>>>10)%150)/1000;        // 0.62 – 0.77
+  const cx=radius*Math.cos(theta), cy=radius*Math.sin(theta);
+  const span=1.3+((h>>>4)%60)/100;              // viewport half-width
+  const rot=((h>>>7)%628)/100;                  // 0 – 2π
+  const maxIter=70;
+  const [pr,pg,pb]=hx("#efe7d6");               // parchment (fast escape)
+  const [tr,tg,tb]=hx(colorHex);                // sector tint (near boundary)
+  const dr=tr*0.22,dg=tg*0.22,db=tb*0.22;       // ink (interior)
+  const cosr=Math.cos(rot),sinr=Math.sin(rot),aspect=W/H;
+  for(let py=0;py<H;py++){
+    for(let px=0;px<W;px++){
+      const x=((px/W)*2-1)*span*aspect, y=((py/H)*2-1)*span;
+      let zx=x*cosr-y*sinr, zy=x*sinr+y*cosr, i=0;
+      while(zx*zx+zy*zy<=4 && i<maxIter){const xt=zx*zx-zy*zy+cx;zy=2*zx*zy+cy;zx=xt;i++;}
+      const idx=(py*W+px)*4;
+      if(i>=maxIter){img.data[idx]=dr;img.data[idx+1]=dg;img.data[idx+2]=db;img.data[idx+3]=255;}
+      else{
+        const m=zx*zx+zy*zy;
+        let nu=Math.log(Math.log(m)/2/Math.log(2))/Math.log(2);
+        if(!isFinite(nu))nu=0;
+        let t=(i+1-nu)/maxIter; t=t<0?0:t>1?1:t;
+        const e=Math.pow(t,0.6);
+        img.data[idx]=lerp(pr,tr,e);img.data[idx+1]=lerp(pg,tg,e);img.data[idx+2]=lerp(pb,tb,e);img.data[idx+3]=255;
+      }
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return cv.toDataURL("image/png");
+}
+function artColor(card){
+  if(card.cat==="Organisation")return TYPE_COLORS[card.type]||"#7a5a2e";
+  if(card.cat==="Higher Power")return TYPE_COLORS["Higher Power"];
+  return TYPE_COLORS.Action;
+}
+function cardArt(card){
+  const key=card.def.name;
+  if(fractalCache.has(key))return fractalCache.get(key);
+  const url=makeFractal(key,artColor(card));
+  fractalCache.set(key,url);
+  return url;
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let S=null;
+function newState(){
+  return {
+    players:[
+      {id:0,name:"Player 1",hand:[],portfolio:[],eliminated:false,negatedHP:new Set(),blindSpotAgainst:null},
+      {id:1,name:"Player 2",hand:[],portfolio:[],eliminated:false,negatedHP:new Set(),blindSpotAgainst:null}
+    ],
+    drawPile:[], discard:[], activeHP:[], government:null, ruler:null,
+    current:0, actions:2, turn:1, log:[],
+    cryptoPlayed:false, anyHPPlayed:false, allied:false,
+    dolphinsCountdown:null, // turns left after dolphins
+    over:false
+  };
+}
+const opp = p => S.players[1-p];
+const cur = () => S.players[S.current];
+
+/* ============================================================
+   VALUE ENGINE
+   ============================================================ */
+function parseV(s){return parseFloat(String(s).replace("£","").replace("bn",""));}
+function fmt(n){
+  const r=Math.round(n*1000)/1000;
+  return "£"+ (Object.is(r,-0)?0:r) +"bn";
+}
+function hpActiveFor(name,player){
+  return S.activeHP.some(h=>h.name===name) && !player.negatedHP.has(name);
+}
+function hasAllOtherSectors(player){
+  const set=new Set(player.portfolio.map(o=>o.type));
+  return SECTORS.filter(s=>s!=="Services").every(s=>set.has(s));
+}
+function orgValue(o,player){
+  let base = parseV(o.def.values[o.size]) * (o.mergeBonus||1);
+  let v = base;
+  const g = S.government;
+  const F = n => hpActiveFor(n,player);
+  switch(o.def.name){
+    case "Big Ol' Oil 'n' Gas": if(F("Big Freeze")||F("Sea Rise")||F("Big Burn")||F("Dolphins")) return 0; break;
+    case "Fit But You Know It Gyms": if(F("Dolphins")||F("Encounter of the Third Kind")) v*=2; break;
+    case "RAIL CHOO CHOO": if(g==="Communism") v*=-1; break;
+    case "H2OMG": if(F("Big Burn")) v=base*100; break;
+    case "NeoMode Fashion": if(F("Big Burn")||F("Big Freeze")) v*=3; break;
+    case "Imaginary Friends": if(F("Mass Robot Uprising")) v*=3; break;
+    case "Hydropoly": if(F("Sea Rise")) v*=2; if(F("Big Burn")) v*=0.5; break;
+    case "M. Smooth's Grooming": if(g==="Monarchy") v*=5; break;
+    case "Pizza D. Action": if(F("Dolphins")) v*=5; break;
+    case "Water Supply": if(F("Dolphins")) return 0; break;
+    case "WOODOO'S": if(g==="Democracy") v*=2; if(g==="Communism") v*=0.5; break;
+    case "Globo Bank TM": if(S.cryptoPlayed) return 0; break;
+    case "The Great Health Service": if(g==="Communism"||S.anyHPPlayed){ v=base*2; if(v>200)v=200; } break;
+    case "Space Programme": if(F("Encounter of the Third Kind")) v*=2; break;
+    case "SOLAR 1000": if(F("Big Burn")) v=base*3; break;
+    case "Blue Steel": if(F("Mass Robot Uprising")) v*=10; break;
+    case "National Enforcement Force": if(g==="Anarchy") v*=5; break;
+    case "Mortar & Brick Builders": if(hasAllOtherSectors(player)) v*=5; break;
+  }
+  const isSec = sec => o.def.type===sec || (F("Mass Robot Uprising") && o.def.type==="Tech");
+  if(F("Cryptodisaster") && isSec("Tech")) return 0;
+  if(F("Big Burn") && isSec("Public")) v*=2;
+  if(F("Return of the Dinosaurs") && (isSec("Natural Resources")||isSec("Perishables"))) v*=2;
+  if(o.def.name==="The Great Health Service" && v>200) v=200; // card states £200bn maximum
+  return v;
+}
+function score(player){
+  if(S.allied){
+    const all=[...S.players[0].portfolio,...S.players[1].portfolio];
+    return all.reduce((t,o)=>t+orgValue(o,player),0);
+  }
+  return player.portfolio.reduce((t,o)=>t+orgValue(o,player),0);
+}
+
+/* ============================================================
+   LOG + RENDER
+   ============================================================ */
+function logEv(html){S.log.unshift(html);if(S.log.length>40)S.log.pop();}
+function render(){
+  if(!S)return;
+  // status bar
+  const sb=document.getElementById("statusbar");
+  let html="";
+  html+=`<span class="pill">Turn <b>${S.turn}</b></span>`;
+  const rulerName = S.ruler!=null ? ` · ${S.players[S.ruler].name}` : "";
+  html+=`<span class="pill">Gov: <b>${S.government||"—"}</b>${rulerName}</span>`;
+  html+=`<span class="pill">Draw pile: <b>${S.drawPile.length}</b></span>`;
+  if(S.allied) html+=`<span class="pill danger">ALLIANCE active</span>`;
+  S.activeHP.forEach(h=>html+=`<span class="pill hp">${h.name}</span>`);
+  if(S.dolphinsCountdown!=null) html+=`<span class="pill danger">Dolphins: ${S.dolphinsCountdown} turn(s) left</span>`;
+  sb.innerHTML=html;
+
+  // board: opponent seat on top, current player on bottom
+  const board=document.getElementById("board");
+  board.innerHTML="";
+  board.appendChild(seatEl(opp(S.current).id,false));
+  board.appendChild(seatEl(S.current,true));
+
+  // log
+  document.getElementById("log").innerHTML = S.log.map(l=>`<div class="ev">${l}</div>`).join("") || `<div class="ev" style="opacity:.4">The world holds its breath…</div>`;
+
+  // dock
+  const dock=document.getElementById("dock");
+  const me=cur();
+  dock.innerHTML=`
+    <span class="acts">Actions left <b>${S.actions}</b></span>
+    <button class="btn" id="drawBtn" ${S.actions<1?"disabled":""}>Draw a card</button>
+    <button class="btn" id="overthrowBtn" ${S.actions<2?"disabled":""}>Overthrow gov</button>
+    <button class="btn primary" id="endBtn">End turn / Pass</button>`;
+  document.getElementById("drawBtn").onclick=()=>doDraw();
+  document.getElementById("overthrowBtn").onclick=()=>doOverthrow();
+  document.getElementById("endBtn").onclick=()=>endTurn();
+}
+function seatEl(pid,isActive){
+  const p=S.players[pid];
+  const el=document.createElement("div");
+  el.className="seat"+(isActive?" active":"");
+  const sc=score(p);
+  el.innerHTML=`
+    <div class="seat-head">
+      <div class="who">${p.name}${p.eliminated?" (out)":""}${S.ruler===pid?" 👑":""}</div>
+      <div class="score">value<b>${fmt(sc)}</b></div>
+    </div>
+    <div class="seat-label">Portfolio (in play)</div>
+    <div class="cardrow" id="port-${pid}"></div>
+    <div class="seat-label">Hand ${isActive?"":`· ${p.hand.length} card(s), hidden`}</div>
+    <div class="cardrow" id="hand-${pid}"></div>`;
+  // portfolio
+  setTimeout(()=>{ // mount after innerHTML
+    const port=el.querySelector(`#port-${pid}`);
+    p.portfolio.forEach(o=>port.appendChild(orgMini(o,p)));
+    const hand=el.querySelector(`#hand-${pid}`);
+    if(isActive){
+      p.hand.forEach(c=>hand.appendChild(handMini(c)));
+    } else {
+      p.hand.forEach(()=>{const d=document.createElement("div");d.className="mini face-down";d.innerHTML="<span>Apocalypse</span>";hand.appendChild(d);});
+    }
+  },0);
+  return el;
+}
+function orgMini(o,owner){
+  const d=document.createElement("div");
+  d.className="mini";
+  const col=TYPE_COLORS[o.def.type]||"#444";
+  d.innerHTML=`
+    <span class="badge" style="background:${col}">${o.def.type}</span>
+    <div class="nm">${o.def.name}</div>
+    <div class="art" style="background-image:url('${cardArt(o)}')"></div>
+    <div class="sizebar">${["S","E","G"].map((s,i)=>`<div class="s ${i===o.size?"on":""}">${s}</div>`).join("")}</div>
+    <div class="val">${fmt(orgValue(o,owner))}</div>
+    <div class="sub">live value${o.mergeBonus>1?` · merged ×${o.mergeBonus}`:""}</div>
+    <div class="usp">${o.def.usp}</div>`;
+  return d;
+}
+function handMini(c){
+  const d=document.createElement("div");
+  const col=TYPE_COLORS[c.def.type]||"#a8761c";
+  if(c.cat==="Organisation"){
+    d.className="mini playable";d.tabIndex=0;
+    d.innerHTML=`<span class="badge" style="background:${col}">${c.def.type}</span>
+      <div class="nm">${c.def.name}</div>
+      <div class="art" style="background-image:url('${cardArt(c)}')"></div>
+      <div class="sizebar">${["S","E","G"].map((s,i)=>`<div class="s ${i===c.size?"on":""}">${s}</div>`).join("")}</div>
+      <div class="val">${c.def.values[c.size]}</div>
+      <div class="sub">play to portfolio</div>
+      <div class="usp">${c.def.usp}</div>`;
+  } else {
+    d.className="mini playable";d.tabIndex=0;
+    d.innerHTML=`<span class="badge" style="background:${col}">${c.cat}</span>
+      <div class="nm" style="font-size:13px">${c.def.name}</div>
+      <div class="art" style="background-image:url('${cardArt(c)}')"></div>
+      <div class="usp" style="max-height:88px;border-top:none;margin-top:6px">${c.def.text}</div>`;
+  }
+  const go=()=>playCard(c);
+  d.onclick=go; d.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go();}};
+  return d;
+}
+
+/* ============================================================
+   MODAL HELPER (async)
+   ============================================================ */
+function modal({title,desc,options,cancel="Cancel",allowCancel=true}){
+  return new Promise(res=>{
+    const m=document.getElementById("modalMount");
+    const wrap=document.createElement("div");wrap.className="modal";
+    wrap.innerHTML=`<div class="box"><h3>${title}</h3>${desc?`<div class="desc">${desc}</div>`:""}
+      <div class="opts"></div>
+      <div class="modal-foot">${allowCancel?`<button class="btn ghost" style="color:var(--ink);border-color:var(--ink)">${cancel}</button>`:""}</div></div>`;
+    const opts=wrap.querySelector(".opts");
+    options.forEach(o=>{
+      const b=document.createElement("button");b.className="opt";
+      b.innerHTML=`<b>${o.label}</b>${o.sub?`<small>${o.sub}</small>`:""}`;
+      b.onclick=()=>{cleanup();res(o.value);};
+      opts.appendChild(b);
+    });
+    if(allowCancel) wrap.querySelector(".modal-foot .btn").onclick=()=>{cleanup();res(null);};
+    function cleanup(){wrap.remove();}
+    m.appendChild(wrap);
+  });
+}
+async function pickOrg(title,list,desc){
+  if(!list.length){await modal({title,desc:"No valid organisations.",options:[],allowCancel:true,cancel:"OK"});return null;}
+  const sel=await modal({title,desc,options:list.map(x=>({label:`${x.o.def.name} · ${SIZES[x.o.size]}`,sub:`${x.owner.name} · ${fmt(orgValue(x.o,x.owner))}`,value:x.o.uid})),});
+  if(sel==null)return null;
+  for(const x of list) if(x.o.uid===sel) return x;
+  return null;
+}
+function note(title,desc){return modal({title,desc,options:[],allowCancel:true,cancel:"OK"});}
+
+/* ============================================================
+   COUNTER SYSTEM (key counters only)
+   "respond" cards held by the opponent of the player acting.
+   ============================================================ */
+function counterCardsFor(responder, event){
+  // event: {kind:'action'|'hp', name, targetPlayer?, actorId}
+  const out=[];
+  const has = nm => responder.hand.find(c=>c.def.name===nm);
+  // Absolutely Not, Mate — reverse any action OR hp
+  if(event.kind==="action"||event.kind==="hp"){const c=has("Absolutely Not, Mate"); if(c) out.push({card:c,type:"reverse"});}
+  // Lawsuit — vs takeover / merger aimed at responder (or any merger/takeover)
+  if(event.kind==="action" && ["Hostile Takeover","Regular Takeover","Angel Investor","Merger","Force An Alliance","Dragon's Den"].includes(event.name)){
+    const c=has("Lawsuit"); if(c) out.push({card:c,type:"lawsuit"});
+  }
+  // Tablets 'n' That — block a merger (portfolio ability)
+  if(event.kind==="action" && event.name==="Merger"){
+    const t=responder.portfolio.find(o=>o.def.name==="Tablets 'n' That" && !o.tabletsUsed);
+    if(t) out.push({org:t,type:"tablets"});
+  }
+  // HP negation cards
+  if(event.kind==="hp"){
+    const map={
+      "Big Freeze":"Big Coat","Big Burn":"Big Sun Hat","Sea Rise":"Big Surfboard","False Idol":"Alejandra, God Of Apocalypta"
+    };
+    if(map[event.name]){const c=has(map[event.name]);if(c)out.push({card:c,type:"negate"});}
+    if(["Dolphins","Return of the Dinosaurs","Encounter of the Third Kind"].includes(event.name)){const c=has("Dr. Dolittle");if(c)out.push({card:c,type:"dolittle"});}
+    if(["Mass Robot Uprising","Electrobrainwash","Cryptodisaster"].includes(event.name)){const c=has("Luddite Uprising");if(c)out.push({card:c,type:"luddite"});}
+  }
+  return out;
+}
+// returns true if the original effect should be CANCELLED
+async function offerCounter(actorId, event){
+  const responder=S.players[1-actorId];
+  if(responder.eliminated) return false;
+  const opts=counterCardsFor(responder,event);
+  if(!opts.length) return false;
+  // hidden prompt — pass device
+  const cancelled = await counterFlow(responder,event,opts);
+  return cancelled;
+}
+function counterFlow(responder,event,opts){
+  return new Promise(resolve=>{
+    const screen=document.getElementById("counterScreen");
+    document.getElementById("counterTitle").textContent=`${responder.name}, you may respond`;
+    document.getElementById("counterSub").textContent=`${S.players[event.actorId].name} just played “${event.name}”. You hold a card that could respond — but it stays secret unless you use it.`;
+    screen.classList.remove("hidden");
+    const viewBtn=document.getElementById("counterViewBtn");
+    const declineBtn=document.getElementById("counterDeclineBtn");
+    const onView=async()=>{cleanup();
+      const choice=await modal({
+        title:`${responder.name} — choose a response`,
+        desc:"Play a card to respond, or let it stand.",
+        options:opts.map((o,i)=>({label: o.card?o.card.def.name:(o.org?`Tablets 'n' That (block merger)`:"Respond"),
+          sub: o.type==="reverse"?"Roll a double to reverse it":o.type==="lawsuit"?"Cancel the takeover/merger":o.type==="tablets"?"Block this merger (one-time)":"Negate the effect",
+          value:i})),
+        cancel:"Let it stand"
+      });
+      if(choice==null){resolve(false);return;}
+      const chosen=opts[choice];
+      const cancelled=await resolveCounter(responder,event,chosen);
+      resolve(cancelled);
+    };
+    const onDecline=()=>{cleanup();resolve(false);};
+    function cleanup(){screen.classList.add("hidden");viewBtn.onclick=null;declineBtn.onclick=null;}
+    viewBtn.onclick=onView; declineBtn.onclick=onDecline;
+  });
+}
+async function resolveCounter(responder,event,chosen){
+  if(chosen.type==="tablets"){
+    chosen.org.tabletsUsed=true;
+    logEv(`<span class="tag">${responder.name}</span> used Tablets 'n' That to <b>block the merger</b>.`);
+    return true;
+  }
+  // discard the response card from hand
+  discardFromHand(responder,chosen.card);
+  if(chosen.type==="reverse"){
+    const d1=1+Math.floor(Math.random()*6), d2=1+Math.floor(Math.random()*6);
+    const dbl=d1===d2;
+    logEv(`<span class="tag">${responder.name}</span> played Absolutely Not, Mate — rolled ${d1} &amp; ${d2}. ${dbl?"<b>Double! Reversed.</b>":"No double — it stands."}`);
+    return dbl;
+  }
+  if(chosen.type==="lawsuit"){
+    logEv(`<span class="tag">${responder.name}</span> filed a Lawsuit — the ${event.name.toLowerCase()} is delayed (cancelled).`);
+    return true;
+  }
+  if(chosen.type==="negate"){
+    responder.negatedHP.add(event.name);
+    logEv(`<span class="tag">${responder.name}</span> negated <b>${event.name}</b> for themselves.`);
+    return false; // HP still plays, just negated for responder
+  }
+  if(chosen.type==="dolittle"){
+    responder.negatedHP.add(event.name);
+    logEv(`<span class="tag">${responder.name}</span> played Dr. Dolittle — ${event.name} negated for them.`);
+    return false;
+  }
+  if(chosen.type==="luddite"){
+    S.players.forEach(p=>p.negatedHP.add(event.name));
+    logEv(`<span class="tag">${responder.name}</span> played Luddite Uprising — <b>${event.name} negated for everyone</b>.`);
+    return false;
+  }
+  return false;
+}
+
+/* ============================================================
+   CORE TURN ACTIONS
+   ============================================================ */
+function spend(n=1){S.actions-=n;}
+function drawOne(player,announce=true){
+  if(!S.drawPile.length){if(announce)logEv("The draw pile is empty.");return null;}
+  const c=S.drawPile.shift();
+  player.hand.push(c);
+  enforceHandLimit(player);
+  return c;
+}
+function enforceHandLimit(player){
+  while(player.hand.length>7){
+    const c=player.hand.pop(); // discard to bottom of draw pile
+    S.drawPile.push(c);
+    logEv(`<span class="tag">${player.name}</span> exceeded 7 cards — ${c.def.name} returned to the bottom of the draw pile.`);
+  }
+}
+function discardFromHand(player,card){
+  const i=player.hand.findIndex(c=>c.uid===card.uid);
+  if(i>=0){player.hand.splice(i,1);S.discard.push(card);}
+}
+async function doDraw(){
+  if(S.actions<1)return;
+  const c=drawOne(cur());
+  if(c){logEv(`<span class="tag">${cur().name}</span> drew a card.`);spend();}
+  render();
+  checkEnd();
+}
+async function doOverthrow(){
+  if(S.actions<2){await note("Not enough actions","Overthrowing the government uses your whole turn (2 actions).");return;}
+  if(S.activeHP.some(h=>h.name==="Electrobrainwash") && !cur().negatedHP.has("Electrobrainwash")){
+    await note("Blocked","Electrobrainwash forbids changing the government.");return;
+  }
+  if(S.activeHP.some(h=>h.name==="False Idol")){
+    await note("Blocked","A False Idol forces Theocracy — the government cannot change.");return;
+  }
+  spend(2);
+  const d1=1+Math.floor(Math.random()*6), d2=1+Math.floor(Math.random()*6);
+  logEv(`<span class="tag">${cur().name}</span> attempts a coup — rolled ${d1} &amp; ${d2}.`);
+  if(d1===d2){
+    setGovernment(GOVS[d1-1],S.current);
+    logEv(`<b>Double ${d1}!</b> Installs <b>${GOVS[d1-1]}</b>.`);
+    await note("Coup successful!",`Double ${d1}! The world is now under ${GOVS[d1-1]}.`);
+  } else {
+    await note("Coup failed","No double — the government stands. Your turn is spent.");
+  }
+  render(); checkEnd(); maybeEndTurn();
+}
+
+async function playCard(card){
+  if(S.actions<1){await note("No actions left","End your turn to pass the device.");return;}
+  const me=cur();
+  if(card.cat==="Organisation"){
+    if(S.activeHP.some(h=>h.name==="Big Freeze") && !me.negatedHP.has("Big Freeze")){
+      await note("Frozen","Big Freeze is in play — no organisation cards can be played. (Big Coat negates it.)");return;
+    }
+    // move to portfolio
+    const i=me.hand.findIndex(c=>c.uid===card.uid);
+    me.hand.splice(i,1);
+    me.portfolio.push(card);
+    logEv(`<span class="tag">${me.name}</span> brought <b>${card.def.name}</b> into play.`);
+    spend(); render(); checkEnd(); maybeEndTurn(); return;
+  }
+  if(card.cat==="Higher Power"){
+    await playHP(card); return;
+  }
+  // ACTION
+  await playAction(card);
+}
+
+/* ---------- HIGHER POWER ---------- */
+async function playHP(card){
+  const me=cur();
+  const name=card.def.name;
+  // offer counter (negation cards) before resolving
+  const cancelled=await offerCounter(S.current,{kind:"hp",name,actorId:S.current});
+  // remove from hand, place in play
+  const i=me.hand.findIndex(c=>c.uid===card.uid);
+  me.hand.splice(i,1);
+  spend();
+  if(cancelled){ // Absolutely Not Mate reversed it — discard, no effect
+    S.discard.push(card);
+    logEv(`<span class="tag">${me.name}</span> tried to unleash <b>${name}</b> — reversed before it landed.`);
+    render(); checkEnd(); maybeEndTurn(); return;
+  }
+  S.activeHP.push({name,card});
+  S.anyHPPlayed=true;
+  logEv(`<span class="tag">${me.name}</span> unleashed Higher Power: <b>${name}</b>.`);
+
+  // immediate effects
+  if(name==="Capitalist Apocalypse"){ render(); endGame("Capitalist Apocalypse has been played."); return; }
+  if(name==="Cryptodisaster"){
+    S.cryptoPlayed=true;
+    // elimination checks
+    S.players.forEach(p=>{
+      const danger=p.portfolio.find(o=>["A-Video","Data Share, Inc.","Big Bloody Search, Inc."].includes(o.def.name));
+      if(danger && !p.negatedHP.has("Cryptodisaster")){
+        eliminate(p,`held ${danger.def.name} during Cryptodisaster`);
+      }
+    });
+  }
+  if(name==="Theocracy"){ /* not an HP */ }
+  if(name==="Encounter of the Third Kind"){
+    S.players.forEach(p=>p.portfolio.forEach(o=>{if(o.def.type==="Wellbeing" && !p.negatedHP.has(name)) o.size=2;}));
+    logEv("Wellbeing companies surge to Giant size.");
+  }
+  if(name==="Dolphins"){
+    if(S.activeHP.some(h=>h.name==="Sea Rise")){
+      S.dolphinsCountdown=2; // ends after each player gets one more turn
+      logEv("<b>The world is underwater — dolphins are rising. The end is one turn away.</b>");
+    } else {
+      logEv("Dolphins appear, but the world isn't underwater — no effect yet.");
+    }
+  }
+  if(name==="False Idol"){
+    setGovernment("Theocracy",S.ruler);
+    logEv("A False Idol forces the world into Theocracy.");
+  }
+  if(checkEliminationEnd()){return;}
+  render(); checkEnd(); maybeEndTurn();
+}
+
+/* ---------- ACTION CARDS ---------- */
+async function playAction(card){
+  const me=cur(), other=opp(S.current);
+  const name=card.def.name;
+  // Determine if this should offer a counter (key counters)
+  const counterable=["Hostile Takeover","Regular Takeover","Angel Investor","Merger","Force An Alliance","Dragon's Den","Stock Crash","Build Stock","CEO Scandal","It's 1929","The New Deal","Rainbow Unicorn"].includes(name);
+  // blind-spot: if this action targets the opponent and opponent has blind spot vs me
+  // (checked inside individual handlers via canAffect)
+
+  // We resolve in two stages: (1) gather the intent / targets, (2) offer counter, (3) apply.
+  // For simplicity, build an "apply" closure; targets chosen before counter where it reads better.
+  let apply=null, summary=name, needsCounter=counterable;
+
+  switch(name){
+    case "Stock Crash": {
+      const t=await pickOrg("Stock Crash — pick a company to shrink",allOrgs(),"Drops one size level.");
+      if(!t)return;
+      apply=()=>{t.o.size=Math.max(0,t.o.size-1);logEv(`<span class="tag">${me.name}</span> crashed <b>${t.o.def.name}</b> to ${SIZES[t.o.size]}.`);};
+      break;
+    }
+    case "Build Stock": {
+      const t=await pickOrg("Build Stock — pick a company to grow",allOrgs(),"Raises one size level.");
+      if(!t)return;
+      apply=()=>{t.o.size=Math.min(2,t.o.size+1);logEv(`<span class="tag">${me.name}</span> grew <b>${t.o.def.name}</b> to ${SIZES[t.o.size]}.`);};
+      break;
+    }
+    case "CEO Scandal": {
+      const t=await pickOrg("CEO Scandal — pick a Giant",allOrgs().filter(x=>x.o.size===2),"Reduces a Giant to Enterprise.");
+      if(!t)return;
+      apply=()=>{t.o.size=1;logEv(`<span class="tag">${me.name}</span>: scandal! <b>${t.o.def.name}</b> falls to Enterprise.`);};
+      break;
+    }
+    case "Rainbow Unicorn": {
+      const t=await pickOrg("Rainbow Unicorn — pick a Start-up",allOrgs().filter(x=>x.o.size===0),"Grows a Start-up straight to Giant.");
+      if(!t)return;
+      apply=()=>{t.o.size=2;logEv(`<span class="tag">${me.name}</span>: 🦄 <b>${t.o.def.name}</b> rockets to Giant.`);};
+      break;
+    }
+    case "It's 1929":
+      apply=()=>{allOrgs().forEach(x=>x.o.size=0);logEv(`<span class="tag">${me.name}</span> played It's 1929 — every company collapses to Start-up.`);};
+      break;
+    case "The New Deal":
+      apply=()=>{allOrgs().forEach(x=>x.o.size=2);logEv(`<span class="tag">${me.name}</span> played The New Deal — every company swells to Giant.`);};
+      break;
+    case "Hostile Takeover": {
+      const targets=other.portfolio.filter(o=>canTakeover(o,me,other)).map(o=>({o,owner:other}));
+      const t=await pickOrg("Hostile Takeover — choose from opponent",targets,"Seize one organisation from your opponent.");
+      if(!t)return;
+      apply=()=>doTakeover(t.o,other,me);
+      break;
+    }
+    case "Angel Investor": {
+      const targets=other.portfolio.filter(o=>o.size===0 && canTakeover(o,me,other)).map(o=>({o,owner:other}));
+      const t=await pickOrg("Angel Investor — pick a Start-up",targets,"Take over a Start-up from your opponent.");
+      if(!t)return;
+      apply=()=>doTakeover(t.o,other,me);
+      break;
+    }
+    case "Regular Takeover": {
+      const mine=me.portfolio.map(o=>({o,owner:me}));
+      if(!mine.length){await note("Nothing to swap","You have no organisations in play.");return;}
+      const give=await pickOrg("Regular Takeover — give which of yours?",mine);
+      if(!give)return;
+      const targets=other.portfolio.filter(o=>canTakeover(o,me,other)).map(o=>({o,owner:other}));
+      const take=await pickOrg("…in exchange for which of theirs?",targets);
+      if(!take)return;
+      apply=()=>{swapOrgs(give.o,me,take.o,other);logEv(`<span class="tag">${me.name}</span> swapped <b>${give.o.def.name}</b> for <b>${take.o.def.name}</b>.`);};
+      break;
+    }
+    case "Dragon's Den": {
+      const t=await pickOrg("Dragon's Den — pick any company in play",allOrgs(),"Its owner must hand it to the other player for a random card.");
+      if(!t)return;
+      apply=()=>{
+        const from=t.owner, to=opp(from.id);
+        // move org
+        from.portfolio.splice(from.portfolio.findIndex(o=>o.uid===t.o.uid),1);
+        to.portfolio.push(t.o);
+        // random card back
+        if(to.hand.length){const idx=Math.floor(Math.random()*to.hand.length);const give=to.hand.splice(idx,1)[0];from.hand.push(give);enforceHandLimit(from);}
+        logEv(`<span class="tag">Dragon's Den:</span> <b>${t.o.def.name}</b> forced from ${from.name} to ${to.name}.`);
+      };
+      break;
+    }
+    case "Merger": {
+      // group same-type in my portfolio
+      const byType={};
+      me.portfolio.forEach(o=>{(byType[o.type]=byType[o.type]||[]).push(o);});
+      const mergeable=Object.values(byType).filter(g=>g.length>=2);
+      if(S.government==="Anarchy"){await note("No mergers","Mergers are forbidden under Anarchy.");return;}
+      if(!mergeable.length){await note("Cannot merge","You need two organisations of the same sector in play.");return;}
+      const list=[];
+      me.portfolio.forEach(o=>list.push({o,owner:me}));
+      const a=await pickOrg("Merger — first organisation",list.filter(x=>byType[x.o.type].length>=2));
+      if(!a)return;
+      const partners=me.portfolio.filter(o=>o.type===a.o.type && o.uid!==a.o.uid && mergeCompatible(a.o,o)).map(o=>({o,owner:me}));
+      if(!partners.length){await note("No partner","No compatible same-sector partner for that card.");return;}
+      const b=await pickOrg("Merger — merge with",partners);
+      if(!b)return;
+      apply=()=>doMerge(a.o,b.o,me);
+      break;
+    }
+    case "Sneaky Corporate Deal":
+      apply=()=>{
+        if(!me.hand.length||!other.hand.length){logEv("Sneaky Corporate Deal fizzled — a hand was empty.");return;}
+        const i=Math.floor(Math.random()*me.hand.length), j=Math.floor(Math.random()*other.hand.length);
+        const tmp=me.hand[i];me.hand[i]=other.hand[j];other.hand[j]=tmp;
+        logEv(`<span class="tag">${me.name}</span> made a sneaky corporate deal — a card swapped at random.`);
+      };
+      needsCounter=false;
+      break;
+    case "Massive Market Forces":
+      apply=()=>{const t=me.hand;me.hand=other.hand;other.hand=t;logEv("Adam Smith's Ghost — both players swap entire hands.");};
+      needsCounter=false;
+      break;
+    case "Generous Tax Break":
+      apply=()=>{
+        S.players.forEach(p=>{
+          const orgs=p.hand.filter(c=>c.cat==="Organisation");
+          orgs.forEach(o=>{p.hand.splice(p.hand.findIndex(c=>c.uid===o.uid),1);p.portfolio.push(o);});
+        });
+        logEv("Generous Tax Break — all organisations in hand are forced into play.");
+      };
+      needsCounter=false;
+      break;
+    case "Investment Portfolio":
+      apply=()=>{
+        let got=0;
+        for(let k=0;k<3;k++){const idx=S.drawPile.findIndex(c=>c.cat==="Organisation");if(idx<0)break;me.hand.push(S.drawPile.splice(idx,1)[0]);got++;}
+        enforceHandLimit(me);
+        logEv(`<span class="tag">${me.name}</span> pulled ${got} organisation card(s) from the deck.`);
+      };
+      needsCounter=false;
+      break;
+    case "Cosmic Interference":
+      apply=()=>{
+        const idx=S.drawPile.findIndex(c=>c.cat==="Higher Power");
+        if(idx<0){logEv("No Higher Power cards left in the deck.");return;}
+        me.hand.push(S.drawPile.splice(idx,1)[0]);enforceHandLimit(me);
+        logEv(`<span class="tag">${me.name}</span> drew a Higher Power card from the deck.`);
+      };
+      needsCounter=false;
+      break;
+    case "Rebellion": {
+      if(blockedGovChange()){await note("Blocked","Government can't change right now (Electrobrainwash / False Idol).");return;}
+      const g=await modal({title:"Rebellion — choose a new government",options:GOVS.map(x=>({label:x,sub:GOV_TEXT[x],value:x}))});
+      if(!g)return;
+      apply=()=>{setGovernment(g,S.current);logEv(`<span class="tag">${me.name}</span> led a Rebellion — government is now <b>${g}</b>.`);};
+      needsCounter=false;
+      break;
+    }
+    case "Form An Alliance":
+    case "Force An Alliance": {
+      if(S.allied){await note("Already allied","An alliance is already in place.");return;}
+      if(name==="Form An Alliance"){
+        // opponent may decline
+        apply=()=>{};
+        const ok=await modal({title:`${other.name}: accept alliance?`,desc:`${me.name} offers to combine portfolios. With two players this means a shared victory.`,options:[{label:"Accept",value:"y"},{label:"Refuse",value:"n"}],allowCancel:false});
+        if(ok!=="y"){logEv(`${other.name} refused the alliance.`);spend();render();maybeEndTurn();S.discard.push(removeFromHand(me,card));return;}
+      }
+      apply=()=>{S.allied=true;logEv(`<b>Alliance formed</b> between ${me.name} and ${other.name}. Portfolios are now shared.`);};
+      break;
+    }
+    case "Break All Partnerships":
+    case "Break A Heart":
+      apply=()=>{
+        if(!S.allied){logEv("There was no alliance to break.");return;}
+        S.allied=false;logEv(`<span class="tag">${me.name}</span> shattered the alliance. Each keeps their own portfolio.`);
+      };
+      needsCounter=false;
+      break;
+    case "Independence Day": {
+      if(!S.activeHP.length){await note("Nothing to rescind","No Higher Power card is in play.");return;}
+      const which=await modal({title:"Independence Day — target which Higher Power?",options:S.activeHP.map(h=>({label:h.name,value:h.name}))});
+      if(!which)return;
+      apply=()=>{
+        const r1=[1+Math.floor(Math.random()*6),1+Math.floor(Math.random()*6)];
+        const r2=[1+Math.floor(Math.random()*6),1+Math.floor(Math.random()*6)];
+        const dbl=r1[0]===r1[1]||r2[0]===r2[1];
+        logEv(`Independence Day rolls — ${me.name}: ${r1.join("&")}, ${other.name}: ${r2.join("&")}.`);
+        if(dbl){removeHP(which);logEv(`<b>A double! ${which} is rescinded.</b>`);}
+        else logEv("No doubles — the Higher Power endures.");
+      };
+      needsCounter=false;
+      break;
+    }
+    case "Luddite Uprising":
+      apply=()=>{["Mass Robot Uprising","Electrobrainwash","Cryptodisaster"].forEach(n=>{if(S.activeHP.some(h=>h.name===n))S.players.forEach(p=>p.negatedHP.add(n));});logEv(`<span class="tag">${me.name}</span> sparked a Luddite Uprising — robot/crypto/brainwash effects negated for all.`);};
+      needsCounter=false;break;
+    case "Dr. Dolittle":
+      apply=()=>{["Dolphins","Return of the Dinosaurs","Encounter of the Third Kind"].forEach(n=>{if(S.activeHP.some(h=>h.name===n))me.negatedHP.add(n);});logEv(`<span class="tag">${me.name}</span> played Dr. Dolittle — dolphin/dinosaur/alien effects negated for them.`);};
+      needsCounter=false;break;
+    case "Big Coat": case "Big Sun Hat": case "Big Surfboard": case "Alejandra, God Of Apocalypta": {
+      const map={"Big Coat":"Big Freeze","Big Sun Hat":"Big Burn","Big Surfboard":"Sea Rise","Alejandra, God Of Apocalypta":"False Idol"};
+      const target=map[name];
+      apply=()=>{
+        if(name==="Alejandra, God Of Apocalypta"){if(S.activeHP.some(h=>h.name==="False Idol")){S.players.forEach(p=>p.negatedHP.add("False Idol"));}logEv(`<span class="tag">${me.name}</span> invoked Alejandra — False Idol negated for all.`);}
+        else{me.negatedHP.add(target);logEv(`<span class="tag">${me.name}</span> negated ${target} for themselves.`);}
+      };
+      needsCounter=false;break;
+    }
+    case "Absolutely Not, Mate":
+      await note("Hold that","Absolutely Not, Mate is a response card — it only triggers when your opponent plays something and you're offered the chance to react.");
+      return;
+    case "Lawsuit":
+      await note("Hold that","Lawsuit is a response card — play it when prompted to block an incoming takeover or merger.");
+      return;
+    default:
+      apply=()=>{logEv(`${me.name} played ${name}.`);};
+  }
+
+  if(!apply)return;
+
+  // offer counter for counterable actions
+  if(needsCounter){
+    const cancelled=await offerCounter(S.current,{kind:"action",name,actorId:S.current});
+    // remove the action card from hand & discard regardless (it was played)
+    S.discard.push(removeFromHand(me,card));
+    spend();
+    if(cancelled){
+      logEv(`<span class="tag">${me.name}</span>'s <b>${name}</b> was countered.`);
+      render();checkEnd();maybeEndTurn();return;
+    }
+    apply();
+  } else {
+    S.discard.push(removeFromHand(me,card));
+    spend();
+    apply();
+  }
+  if(checkEliminationEnd())return;
+  render();checkEnd();maybeEndTurn();
+}
+
+function removeFromHand(player,card){
+  const i=player.hand.findIndex(c=>c.uid===card.uid);
+  return i>=0?player.hand.splice(i,1)[0]:card;
+}
+
+/* ---------- takeover / merge helpers ---------- */
+function allOrgs(){const r=[];S.players.forEach(p=>p.portfolio.forEach(o=>r.push({o,owner:p})));return r;}
+function canAffect(targetPlayer,actor){
+  // blind spot: if targetPlayer named actor in blindSpotAgainst, actor's actions can't affect targetPlayer
+  return targetPlayer.blindSpotAgainst!==actor.id;
+}
+function canTakeover(o,acquirer,owner){
+  if(!canAffect(owner,acquirer))return false;
+  if(o.def.name==="Big Bloody Search, Inc.")return false;
+  if(o.def.name==="Fran's Food"){
+    const per=acquirer.portfolio.filter(x=>x.type==="Perishables").length;
+    if(per<2)return false;
+  }
+  return true;
+}
+function doTakeover(o,from,to){
+  if(o.def.name==="Drugtopia" && !o.takeoverResisted){
+    o.takeoverResisted=true;
+    logEv(`<b>Drugtopia</b> resisted the takeover (one-time).`);
+    return;
+  }
+  const anarchy=S.government==="Anarchy";
+  // move org
+  from.portfolio.splice(from.portfolio.findIndex(x=>x.uid===o.uid),1);
+  to.portfolio.push(o);
+  logEv(`<span class="tag">${to.name}</span> took over <b>${o.def.name}</b> from ${from.name}.`);
+  if(anarchy){
+    // takeover yields 2 organisations — grab a second random org if available
+    const extra=from.portfolio.find(x=>canTakeover(x,to,from));
+    if(extra){from.portfolio.splice(from.portfolio.findIndex(x=>x.uid===extra.uid),1);to.portfolio.push(extra);logEv(`Anarchy bonus: also seized <b>${extra.def.name}</b>.`);}
+  }
+}
+function swapOrgs(a,pa,b,pb){
+  pa.portfolio.splice(pa.portfolio.findIndex(o=>o.uid===a.uid),1);
+  pb.portfolio.splice(pb.portfolio.findIndex(o=>o.uid===b.uid),1);
+  pa.portfolio.push(b);pb.portfolio.push(a);
+}
+function mergeCompatible(a,b){
+  // same type always ok; plus special "merge with anything" USPs
+  const anyMerge=["Speedy Courier Plus","Peachy 'n' Clean"];
+  if(anyMerge.includes(a.def.name)||anyMerge.includes(b.def.name))return true;
+  return a.type===b.type;
+}
+function doMerge(a,b,player){
+  // multiplier: parse a.def.merge & b.def.merge → use the primary (a) multiplier, with USP boosts
+  let mult=parseFloat(String(a.def.merge).replace("×",""))||1;
+  // Good Mind ×20 if merged with tech
+  if(a.def.name==="Good Mind, Inc." && b.type==="Tech") mult=20;
+  if(b.def.name==="Good Mind, Inc." && a.type==="Tech") mult=20;
+  // Golden Carrot ×5 with perishables
+  if(a.def.name==="Golden Carrot Health Foods" && b.type==="Perishables") mult=5;
+  // Globocorp rules
+  if(a.def.name==="Globocorp TM"||b.def.name==="Globocorp TM"){
+    const otherCard=a.def.name==="Globocorp TM"?b:a;
+    mult = otherCard.size===2 ? -1 : 2;
+  }
+  const combinedBase=parseV(a.def.values[a.size])+parseV(b.def.values[b.size]);
+  // result: keep card a, set Giant, store mergeBonus so live value = mult * combinedBase at giant baseline
+  // We express bonus relative to a's giant base so orgValue stays consistent.
+  const aGiantBase=parseV(a.def.values[2])||1;
+  a.size=2;
+  a.mergeBonus = (mult*combinedBase)/ (aGiantBase||1);
+  if(!isFinite(a.mergeBonus)||a.mergeBonus===0) a.mergeBonus=mult;
+  // remove b
+  player.portfolio.splice(player.portfolio.findIndex(o=>o.uid===b.uid),1);
+  logEv(`<span class="tag">${player.name}</span> merged <b>${a.def.name}</b> + <b>${b.def.name}</b> → Giant at merge ×${mult} (≈ ${fmt(orgValue(a,player))}).`);
+}
+
+/* ---------- government ---------- */
+function setGovernment(g,rulerId){
+  S.government=g; S.ruler = rulerId;
+  if(g==="Theocracy"){S.players.forEach(p=>{const idx=S.drawPile.findIndex(c=>c.cat==="Higher Power");if(idx>=0){p.hand.push(S.drawPile.splice(idx,1)[0]);enforceHandLimit(p);}});logEv("Theocracy: every player draws a Higher Power card.");}
+  if(g==="Communism"){applyCommunism();}
+}
+function blockedGovChange(){
+  if(S.activeHP.some(h=>h.name==="Electrobrainwash") && !cur().negatedHP.has("Electrobrainwash"))return true;
+  if(S.activeHP.some(h=>h.name==="False Idol"))return true;
+  return false;
+}
+function applyCommunism(){
+  // pool all orgs in play + in hand, except Bill's Local News (stays), reallocate evenly
+  const keep={};
+  const pool=[];
+  S.players.forEach(p=>{
+    keep[p.id]=[];
+    p.portfolio.forEach(o=>{ if(o.def.name==="Bill's Local News") keep[p.id].push(o); else pool.push(o); });
+    // orgs in hand also pooled into play
+    const handOrgs=p.hand.filter(c=>c.cat==="Organisation");
+    handOrgs.forEach(o=>{p.hand.splice(p.hand.findIndex(c=>c.uid===o.uid),1); if(o.def.name==="Bill's Local News")keep[p.id].push(o); else pool.push(o);});
+  });
+  shuffle(pool);
+  S.players.forEach(p=>p.portfolio=keep[p.id].slice());
+  pool.forEach((o,i)=>S.players[i%2].portfolio.push(o));
+  logEv("Communism: all organisations pooled and shared evenly (Bill's Local News stayed put).");
+}
+function removeHP(name){
+  S.activeHP=S.activeHP.filter(h=>h.name!==name);
+  if(name==="Dolphins")S.dolphinsCountdown=null;
+}
+
+/* ---------- elimination / end ---------- */
+function eliminate(player,reason){
+  player.eliminated=true;
+  logEv(`<b>${player.name} is OUT</b> — ${reason}.`);
+}
+function checkEliminationEnd(){
+  const alive=S.players.filter(p=>!p.eliminated);
+  if(alive.length<=1){endGame(alive.length?`${alive[0].name} is the last corporation standing.`:"Mutual destruction.");return true;}
+  return false;
+}
+function checkEnd(){
+  if(S.over)return;
+  checkEliminationEnd();
+}
+
+/* ---------- turn flow ---------- */
+function maybeEndTurn(){
+  if(S.over)return;
+  if(S.actions<=0) endTurn();
+}
+function endTurn(){
+  if(S.over)return;
+  // dolphins countdown
+  if(S.dolphinsCountdown!=null){
+    S.dolphinsCountdown--;
+    if(S.dolphinsCountdown<=0){endGame("The dolphins have taken the world.");return;}
+  }
+  // advance
+  S.current=1-S.current;
+  // skip eliminated
+  if(S.players[S.current].eliminated){endGame(`${S.players[1-S.current].name} wins by elimination.`);return;}
+  S.turn++;
+  S.actions=2;
+  // start-of-turn government effects for ruler
+  startOfTurnEffects();
+  showPassScreen();
+}
+function startOfTurnEffects(){
+  const me=cur();
+  if(S.government==="Dictatorship" && S.ruler===me.id){
+    const victim=opp(me.id);
+    if(victim.hand.length){const idx=Math.floor(Math.random()*victim.hand.length);const c=victim.hand.splice(idx,1)[0];me.hand.push(c);enforceHandLimit(me);logEv(`Dictatorship: ${me.name} seized a random card from ${victim.name}.`);}
+  }
+}
+function showPassScreen(){
+  render();
+  const sc=document.getElementById("passScreen");
+  document.getElementById("passTitle").textContent=`${cur().name}, it's your turn`;
+  document.getElementById("passSub").textContent=`Pass the device to ${cur().name}. The previous player's hand is now hidden.`;
+  sc.classList.remove("hidden");
+}
+
+/* ---------- end game ---------- */
+function endGame(reason){
+  if(S.over)return;
+  S.over=true;
+  render();
+  const sc=document.getElementById("overScreen");
+  const s0=score(S.players[0]), s1=score(S.players[1]);
+  let title="The world has ended", sub=reason;
+  let winner;
+  if(S.players[0].eliminated && !S.players[1].eliminated) winner=1;
+  else if(S.players[1].eliminated && !S.players[0].eliminated) winner=0;
+  else if(S.allied) winner=-1;
+  else winner = s0===s1 ? -1 : (s0>s1?0:1);
+  document.getElementById("overTitle").textContent=title;
+  document.getElementById("overSub").textContent=sub;
+  document.getElementById("overScores").innerHTML=
+    `<div style="font-size:15px;line-height:1.8">
+      ${S.players[0].name}: <b style="color:var(--gold)">${fmt(s0)}</b>${S.players[0].eliminated?" (out)":""}<br>
+      ${S.players[1].name}: <b style="color:var(--gold)">${fmt(s1)}</b>${S.players[1].eliminated?" (out)":""}
+     </div>
+     <h2 style="margin-top:14px">${winner===-1?"It's a shared fate — a draw":S.players[winner].name+" wins"}</h2>`;
+  sc.classList.remove("hidden");
+}
+
+/* ============================================================
+   SETUP
+   ============================================================ */
+function buildGovGrid(){
+  const g=document.getElementById("govGrid");
+  g.innerHTML=GOVS.map((n,i)=>`<div class="pick" id="gp${i}"><div class="num">${i+1}</div><div class="nm">${n}</div></div>`).join("");
+}
+let chosenGov=null, chosenRuler=null;
+function rollGov(){
+  const die=document.getElementById("setupDie");
+  let ticks=0;
+  const faces=["⚀","⚁","⚂","⚃","⚄","⚅"];
+  const iv=setInterval(()=>{
+    const r=Math.floor(Math.random()*6);
+    die.textContent=faces[r];
+    document.querySelectorAll(".pick").forEach((e,i)=>e.style.outline=i===r?"3px solid var(--gold)":"none");
+    if(++ticks>12){
+      clearInterval(iv);
+      const final=Math.floor(Math.random()*6);
+      die.textContent=faces[final];
+      document.querySelectorAll(".pick").forEach((e,i)=>e.style.outline=i===final?"3px solid var(--gold)":"none");
+      chosenGov=GOVS[final];
+      // ruler-relevant govs: Dictatorship/Democracy/Monarchy have a ruler. Decide by a quick high-roll.
+      chosenRuler = ["Dictatorship","Democracy","Monarchy"].includes(chosenGov) ? Math.floor(Math.random()*2) : null;
+      document.getElementById("rollGovBtn").classList.add("hidden");
+      const start=document.getElementById("startGameBtn");
+      start.classList.remove("hidden");
+      start.textContent=`Begin under ${chosenGov}`;
+    }
+  },70);
+}
+function startGame(){
+  S=newState();
+  S.drawPile=shuffle(buildDeck());
+  // deal 5 each
+  for(let k=0;k<5;k++){S.players[0].hand.push(S.drawPile.shift());S.players[1].hand.push(S.drawPile.shift());}
+  S.government=chosenGov;
+  S.ruler=chosenRuler;
+  S.current = chosenRuler!=null ? chosenRuler : 0;
+  S.actions=2;
+  logEv(`The world begins under <b>${chosenGov}</b>${chosenRuler!=null?` — ${S.players[chosenRuler].name} rules`:""}.`);
+  if(chosenGov==="Communism")applyCommunism();
+  document.getElementById("setupScreen").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+  document.getElementById("rulesText").innerHTML=RULES_HTML;
+  startOfTurnEffects();
+  showPassScreen();
+}
+
+const RULES_HTML=`
+<b>Turn:</b> two actions per turn. Each action is either <i>Draw a card</i> or <i>Play a card</i>; you may repeat. Overthrowing the government uses both actions.<br><br>
+<b>Hand:</b> start with 5, hold up to 7. Excess cards return to the bottom of the draw pile.<br><br>
+<b>Deck:</b> Action, Organisation and Higher Power cards are shuffled into one pile. Government is set by the opening dice roll and only changes via <i>Rebellion</i> or a successful coup (roll any double — its number, 1–6, installs that government).<br><br>
+<b>Counters (key set):</b> when you play certain cards your opponent is offered a hidden chance to respond with <i>Absolutely Not, Mate</i> (roll a double to reverse), <i>Lawsuit</i> (block a takeover/merger), the Higher-Power negators (Big Coat / Sun Hat / Surfboard / Dr. Dolittle / Luddite Uprising / Alejandra), or the Tablets 'n' That merger block.<br><br>
+<b>Merge maths (house rule):</b> merging two same-sector cards makes one Giant whose live value ≈ <i>merge multiplier × combined current value</i>. USP boosts (Good Mind ×20 w/ tech, Golden Carrot ×5 w/ perishables, Globocorp rules) override the base multiplier.<br><br>
+<b>Mass Robot Uprising (house rule):</b> tech organisations count as <i>every</i> sector, so they pick up Big Burn / Dinosaurs bonuses and can merge with anything.<br><br>
+<b>Win:</b> highest live portfolio value when the game ends — either the <i>Capitalist Apocalypse</i> card is played, the <i>Dolphins</i> finish a flooded world, or a player is eliminated (e.g. holding A-Video / Data Share / Big Bloody Search during Cryptodisaster).<br><br>
+<b>Alliances</b> combine both portfolios into a shared value; with two players that means a shared (draw) victory until broken.`;
+
+/* ============================================================
+   WIRE UP
+   ============================================================ */
+buildGovGrid();
+document.getElementById("rollGovBtn").onclick=rollGov;
+document.getElementById("startGameBtn").onclick=startGame;
+document.getElementById("revealBtn").onclick=()=>{document.getElementById("passScreen").classList.add("hidden");render();};
+</script>
+</body>
+</html>
