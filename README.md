@@ -65,13 +65,29 @@ works with classic "deploy from branch" Pages if you prefer that route.
 
 ## Project layout
 
+The game used to be one 1,300-line `index.html`. It's now split by concern into
+`src/` (loaded as ordered classic scripts that share one global scope — no build step):
+
 ```
-index.html                    The entire game (data, engine, UI, art)
+index.html                    Markup + screens; links the stylesheet and src/ scripts
+src/styles.css                All styles (retro-parchment design system)
+src/data.js                   Card data & constants (pure: GOVS, HP, ACTIONS, ORGS …)
+src/deck.js                   Deck building (buildDeck, inst, shuffle)
+src/art.js                    Seeded Julia-set card art
+src/engine.js                 State shape + value engine (orgValue, score) — DOM-free
+src/ui.js                     render(), seat/card rendering, modal dialogs
+src/rules.js                  Counter system, turn flow, action/HP resolution, gov, endgame
+src/setup.js                  Dice-roll setup, startGame(), in-game rules text
+src/main.js                   Wire-up / bootstrap (loads last)
 docs/HANDOFF.md               Deep architecture reference — state shape, turn flow,
                               value engine, card formats, known gaps
 .github/workflows/pages.yml   GitHub Pages deployment
 .nojekyll                     Serve files as-is (no Jekyll processing)
 ```
+
+> **Load order matters.** Because the scripts currently share a global scope rather
+> than using `import`/`export`, `index.html` loads them in dependency order with
+> `main.js` last. The next roadmap step converts these into true ES modules.
 
 For anyone working on the engine, **`docs/HANDOFF.md` is the map**: it documents the
 global state object, the value engine, the counter system, every card format, and the
@@ -90,12 +106,17 @@ structure than one file can carry comfortably:
 - [ ] Persist a game in progress to `localStorage` so a reload doesn't lose it
 
 ### Medium term (the structural shift)
-- [ ] **Extract the engine from the HTML.** Split the data arrays and game logic out of
-  `index.html` into modules (e.g. `data.js`, `engine.js`, `ui.js`) so the rules can
-  evolve without scrolling a 1,300-line file. This is the prerequisite for everything
-  below.
-- [ ] Move to a small build/dev setup (a static bundler) while keeping the output a
-  deployable static site for Pages.
+- [x] **Extract the engine from the HTML.** The monolith is now split into `src/`
+  files by concern (data, deck, art, engine, ui, rules, setup) so the rules can evolve
+  without scrolling a 1,300-line file. Done as ordered classic scripts (zero logic
+  change, still runs by double-click and on Pages).
+- [ ] **Convert `src/` to true ES modules** with explicit `import`/`export`, and pull
+  the DOM-free core (state + value engine + rules) behind a clean, headless API so it
+  can run under Node. This enforces the engine/UI boundary that the AI work below needs.
+  *(Note: ES modules need a local dev server — e.g. `python3 -m http.server` — they
+  don't run from `file://`.)*
+- [ ] Add automated engine tests (value engine, merges, eliminations) so larger
+  refactors are safe, then optionally a small static bundler.
 
 ### Long term (the headline features)
 - [ ] **3+ player support.** State and rendering are already parameterised by player id;
