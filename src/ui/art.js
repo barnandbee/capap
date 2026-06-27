@@ -1,11 +1,7 @@
-"use strict";
-/* Capitalist Apocalypse — card art (seeded fractals)
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — card art (browser only: uses <canvas>).
+   Seeded Julia-set illustrations, one deterministic image per card name. */
+import { TYPE_COLORS } from "../engine/data.js";
 
-/* ============================================================
-   CARD ART — seeded Julia-set illustrations (one per card name)
-   ============================================================ */
 const fractalCache=new Map();
 function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
 function hx(h){h=h.replace("#","");return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
@@ -52,7 +48,7 @@ function artColor(card){
   if(card.cat==="Higher Power")return TYPE_COLORS["Higher Power"];
   return TYPE_COLORS.Action;
 }
-function cardArt(card){
+export function cardArt(card){
   const key=card.def.name;
   if(fractalCache.has(key))return fractalCache.get(key);
   const url=makeFractal(key,artColor(card));

@@ -1,38 +1,22 @@
-"use strict";
-/* Capitalist Apocalypse — counter system, turn flow & rules
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — turn flow & counter orchestration (browser).
+
+   This layer wires player choices (modals, the counter screen) to the DOM-free
+   engine. It's the natural seam for AI players later: a bot would call the same
+   engine mutations these handlers do, without the await-modal prompts. */
+import {
+  GOVS, GOV_TEXT, SIZES,
+  S, opp, cur, logEv, spend,
+  counterCardsFor, drawOne, enforceHandLimit, discardFromHand, removeFromHand,
+  allOrgs, canTakeover, doTakeover, swapOrgs, mergeCompatible, doMerge,
+  setGovernment, blockedGovChange, removeHP, eliminate,
+  checkEliminationEnd, checkEnd, startOfTurnEffects, endGame
+} from "./engine/index.js";
+import { modal, pickOrg, note } from "./ui/modal.js";
+import { render, showPassScreen } from "./ui/render.js";
 
 /* ============================================================
-   COUNTER SYSTEM (key counters only)
-   "respond" cards held by the opponent of the player acting.
+   COUNTER SYSTEM (UI side of the key counters)
    ============================================================ */
-function counterCardsFor(responder, event){
-  // event: {kind:'action'|'hp', name, targetPlayer?, actorId}
-  const out=[];
-  const has = nm => responder.hand.find(c=>c.def.name===nm);
-  // Absolutely Not, Mate — reverse any action OR hp
-  if(event.kind==="action"||event.kind==="hp"){const c=has("Absolutely Not, Mate"); if(c) out.push({card:c,type:"reverse"});}
-  // Lawsuit — vs takeover / merger aimed at responder (or any merger/takeover)
-  if(event.kind==="action" && ["Hostile Takeover","Regular Takeover","Angel Investor","Merger","Force An Alliance","Dragon's Den"].includes(event.name)){
-    const c=has("Lawsuit"); if(c) out.push({card:c,type:"lawsuit"});
-  }
-  // Tablets 'n' That — block a merger (portfolio ability)
-  if(event.kind==="action" && event.name==="Merger"){
-    const t=responder.portfolio.find(o=>o.def.name==="Tablets 'n' That" && !o.tabletsUsed);
-    if(t) out.push({org:t,type:"tablets"});
-  }
-  // HP negation cards
-  if(event.kind==="hp"){
-    const map={
-      "Big Freeze":"Big Coat","Big Burn":"Big Sun Hat","Sea Rise":"Big Surfboard","False Idol":"Alejandra, God Of Apocalypta"
-    };
-    if(map[event.name]){const c=has(map[event.name]);if(c)out.push({card:c,type:"negate"});}
-    if(["Dolphins","Return of the Dinosaurs","Encounter of the Third Kind"].includes(event.name)){const c=has("Dr. Dolittle");if(c)out.push({card:c,type:"dolittle"});}
-    if(["Mass Robot Uprising","Electrobrainwash","Cryptodisaster"].includes(event.name)){const c=has("Luddite Uprising");if(c)out.push({card:c,type:"luddite"});}
-  }
-  return out;
-}
 // returns true if the original effect should be CANCELLED
 async function offerCounter(actorId, event){
   const responder=S.players[1-actorId];
@@ -109,33 +93,14 @@ async function resolveCounter(responder,event,chosen){
 /* ============================================================
    CORE TURN ACTIONS
    ============================================================ */
-function spend(n=1){S.actions-=n;}
-function drawOne(player,announce=true){
-  if(!S.drawPile.length){if(announce)logEv("The draw pile is empty.");return null;}
-  const c=S.drawPile.shift();
-  player.hand.push(c);
-  enforceHandLimit(player);
-  return c;
-}
-function enforceHandLimit(player){
-  while(player.hand.length>7){
-    const c=player.hand.pop(); // discard to bottom of draw pile
-    S.drawPile.push(c);
-    logEv(`<span class="tag">${player.name}</span> exceeded 7 cards — ${c.def.name} returned to the bottom of the draw pile.`);
-  }
-}
-function discardFromHand(player,card){
-  const i=player.hand.findIndex(c=>c.uid===card.uid);
-  if(i>=0){player.hand.splice(i,1);S.discard.push(card);}
-}
-async function doDraw(){
+export async function doDraw(){
   if(S.actions<1)return;
   const c=drawOne(cur());
   if(c){logEv(`<span class="tag">${cur().name}</span> drew a card.`);spend();}
-  render();
   checkEnd();
+  render();
 }
-async function doOverthrow(){
+export async function doOverthrow(){
   if(S.actions<2){await note("Not enough actions","Overthrowing the government uses your whole turn (2 actions).");return;}
   if(S.activeHP.some(h=>h.name==="Electrobrainwash") && !cur().negatedHP.has("Electrobrainwash")){
     await note("Blocked","Electrobrainwash forbids changing the government.");return;
@@ -153,10 +118,10 @@ async function doOverthrow(){
   } else {
     await note("Coup failed","No double — the government stands. Your turn is spent.");
   }
-  render(); checkEnd(); maybeEndTurn();
+  checkEnd(); render(); maybeEndTurn();
 }
 
-async function playCard(card){
+export async function playCard(card){
   if(S.actions<1){await note("No actions left","End your turn to pass the device.");return;}
   const me=cur();
   if(card.cat==="Organisation"){
@@ -168,7 +133,7 @@ async function playCard(card){
     me.hand.splice(i,1);
     me.portfolio.push(card);
     logEv(`<span class="tag">${me.name}</span> brought <b>${card.def.name}</b> into play.`);
-    spend(); render(); checkEnd(); maybeEndTurn(); return;
+    spend(); checkEnd(); render(); maybeEndTurn(); return;
   }
   if(card.cat==="Higher Power"){
     await playHP(card); return;
@@ -190,14 +155,14 @@ async function playHP(card){
   if(cancelled){ // Absolutely Not Mate reversed it — discard, no effect
     S.discard.push(card);
     logEv(`<span class="tag">${me.name}</span> tried to unleash <b>${name}</b> — reversed before it landed.`);
-    render(); checkEnd(); maybeEndTurn(); return;
+    checkEnd(); render(); maybeEndTurn(); return;
   }
   S.activeHP.push({name,card});
   S.anyHPPlayed=true;
   logEv(`<span class="tag">${me.name}</span> unleashed Higher Power: <b>${name}</b>.`);
 
   // immediate effects
-  if(name==="Capitalist Apocalypse"){ render(); endGame("Capitalist Apocalypse has been played."); return; }
+  if(name==="Capitalist Apocalypse"){ endGame("Capitalist Apocalypse has been played."); render(); return; }
   if(name==="Cryptodisaster"){
     S.cryptoPlayed=true;
     // elimination checks
@@ -225,8 +190,8 @@ async function playHP(card){
     setGovernment("Theocracy",S.ruler);
     logEv("A False Idol forces the world into Theocracy.");
   }
-  if(checkEliminationEnd()){return;}
-  render(); checkEnd(); maybeEndTurn();
+  if(checkEliminationEnd()){render();return;}
+  checkEnd(); render(); maybeEndTurn();
 }
 
 /* ---------- ACTION CARDS ---------- */
@@ -449,7 +414,7 @@ async function playAction(card){
     spend();
     if(cancelled){
       logEv(`<span class="tag">${me.name}</span>'s <b>${name}</b> was countered.`);
-      render();checkEnd();maybeEndTurn();return;
+      checkEnd();render();maybeEndTurn();return;
     }
     apply();
   } else {
@@ -457,187 +422,29 @@ async function playAction(card){
     spend();
     apply();
   }
-  if(checkEliminationEnd())return;
-  render();checkEnd();maybeEndTurn();
-}
-
-function removeFromHand(player,card){
-  const i=player.hand.findIndex(c=>c.uid===card.uid);
-  return i>=0?player.hand.splice(i,1)[0]:card;
-}
-
-/* ---------- takeover / merge helpers ---------- */
-function allOrgs(){const r=[];S.players.forEach(p=>p.portfolio.forEach(o=>r.push({o,owner:p})));return r;}
-function canAffect(targetPlayer,actor){
-  // blind spot: if targetPlayer named actor in blindSpotAgainst, actor's actions can't affect targetPlayer
-  return targetPlayer.blindSpotAgainst!==actor.id;
-}
-function canTakeover(o,acquirer,owner){
-  if(!canAffect(owner,acquirer))return false;
-  if(o.def.name==="Big Bloody Search, Inc.")return false;
-  if(o.def.name==="Fran's Food"){
-    const per=acquirer.portfolio.filter(x=>x.type==="Perishables").length;
-    if(per<2)return false;
-  }
-  return true;
-}
-function doTakeover(o,from,to){
-  if(o.def.name==="Drugtopia" && !o.takeoverResisted){
-    o.takeoverResisted=true;
-    logEv(`<b>Drugtopia</b> resisted the takeover (one-time).`);
-    return;
-  }
-  const anarchy=S.government==="Anarchy";
-  // move org
-  from.portfolio.splice(from.portfolio.findIndex(x=>x.uid===o.uid),1);
-  to.portfolio.push(o);
-  logEv(`<span class="tag">${to.name}</span> took over <b>${o.def.name}</b> from ${from.name}.`);
-  if(anarchy){
-    // takeover yields 2 organisations — grab a second random org if available
-    const extra=from.portfolio.find(x=>canTakeover(x,to,from));
-    if(extra){from.portfolio.splice(from.portfolio.findIndex(x=>x.uid===extra.uid),1);to.portfolio.push(extra);logEv(`Anarchy bonus: also seized <b>${extra.def.name}</b>.`);}
-  }
-}
-function swapOrgs(a,pa,b,pb){
-  pa.portfolio.splice(pa.portfolio.findIndex(o=>o.uid===a.uid),1);
-  pb.portfolio.splice(pb.portfolio.findIndex(o=>o.uid===b.uid),1);
-  pa.portfolio.push(b);pb.portfolio.push(a);
-}
-function mergeCompatible(a,b){
-  // same type always ok; plus special "merge with anything" USPs
-  const anyMerge=["Speedy Courier Plus","Peachy 'n' Clean"];
-  if(anyMerge.includes(a.def.name)||anyMerge.includes(b.def.name))return true;
-  return a.type===b.type;
-}
-function doMerge(a,b,player){
-  // multiplier: parse a.def.merge & b.def.merge → use the primary (a) multiplier, with USP boosts
-  let mult=parseFloat(String(a.def.merge).replace("×",""))||1;
-  // Good Mind ×20 if merged with tech
-  if(a.def.name==="Good Mind, Inc." && b.type==="Tech") mult=20;
-  if(b.def.name==="Good Mind, Inc." && a.type==="Tech") mult=20;
-  // Golden Carrot ×5 with perishables
-  if(a.def.name==="Golden Carrot Health Foods" && b.type==="Perishables") mult=5;
-  // Globocorp rules
-  if(a.def.name==="Globocorp TM"||b.def.name==="Globocorp TM"){
-    const otherCard=a.def.name==="Globocorp TM"?b:a;
-    mult = otherCard.size===2 ? -1 : 2;
-  }
-  const combinedBase=parseV(a.def.values[a.size])+parseV(b.def.values[b.size]);
-  // result: keep card a, set Giant, store mergeBonus so live value = mult * combinedBase at giant baseline
-  // We express bonus relative to a's giant base so orgValue stays consistent.
-  const aGiantBase=parseV(a.def.values[2])||1;
-  a.size=2;
-  a.mergeBonus = (mult*combinedBase)/ (aGiantBase||1);
-  if(!isFinite(a.mergeBonus)||a.mergeBonus===0) a.mergeBonus=mult;
-  // remove b
-  player.portfolio.splice(player.portfolio.findIndex(o=>o.uid===b.uid),1);
-  logEv(`<span class="tag">${player.name}</span> merged <b>${a.def.name}</b> + <b>${b.def.name}</b> → Giant at merge ×${mult} (≈ ${fmt(orgValue(a,player))}).`);
-}
-
-/* ---------- government ---------- */
-function setGovernment(g,rulerId){
-  S.government=g; S.ruler = rulerId;
-  if(g==="Theocracy"){S.players.forEach(p=>{const idx=S.drawPile.findIndex(c=>c.cat==="Higher Power");if(idx>=0){p.hand.push(S.drawPile.splice(idx,1)[0]);enforceHandLimit(p);}});logEv("Theocracy: every player draws a Higher Power card.");}
-  if(g==="Communism"){applyCommunism();}
-}
-function blockedGovChange(){
-  if(S.activeHP.some(h=>h.name==="Electrobrainwash") && !cur().negatedHP.has("Electrobrainwash"))return true;
-  if(S.activeHP.some(h=>h.name==="False Idol"))return true;
-  return false;
-}
-function applyCommunism(){
-  // pool all orgs in play + in hand, except Bill's Local News (stays), reallocate evenly
-  const keep={};
-  const pool=[];
-  S.players.forEach(p=>{
-    keep[p.id]=[];
-    p.portfolio.forEach(o=>{ if(o.def.name==="Bill's Local News") keep[p.id].push(o); else pool.push(o); });
-    // orgs in hand also pooled into play
-    const handOrgs=p.hand.filter(c=>c.cat==="Organisation");
-    handOrgs.forEach(o=>{p.hand.splice(p.hand.findIndex(c=>c.uid===o.uid),1); if(o.def.name==="Bill's Local News")keep[p.id].push(o); else pool.push(o);});
-  });
-  shuffle(pool);
-  S.players.forEach(p=>p.portfolio=keep[p.id].slice());
-  pool.forEach((o,i)=>S.players[i%2].portfolio.push(o));
-  logEv("Communism: all organisations pooled and shared evenly (Bill's Local News stayed put).");
-}
-function removeHP(name){
-  S.activeHP=S.activeHP.filter(h=>h.name!==name);
-  if(name==="Dolphins")S.dolphinsCountdown=null;
-}
-
-/* ---------- elimination / end ---------- */
-function eliminate(player,reason){
-  player.eliminated=true;
-  logEv(`<b>${player.name} is OUT</b> — ${reason}.`);
-}
-function checkEliminationEnd(){
-  const alive=S.players.filter(p=>!p.eliminated);
-  if(alive.length<=1){endGame(alive.length?`${alive[0].name} is the last corporation standing.`:"Mutual destruction.");return true;}
-  return false;
-}
-function checkEnd(){
-  if(S.over)return;
-  checkEliminationEnd();
+  if(checkEliminationEnd()){render();return;}
+  checkEnd();render();maybeEndTurn();
 }
 
 /* ---------- turn flow ---------- */
-function maybeEndTurn(){
+export function maybeEndTurn(){
   if(S.over)return;
   if(S.actions<=0) endTurn();
 }
-function endTurn(){
+export function endTurn(){
   if(S.over)return;
   // dolphins countdown
   if(S.dolphinsCountdown!=null){
     S.dolphinsCountdown--;
-    if(S.dolphinsCountdown<=0){endGame("The dolphins have taken the world.");return;}
+    if(S.dolphinsCountdown<=0){endGame("The dolphins have taken the world.");render();return;}
   }
   // advance
   S.current=1-S.current;
   // skip eliminated
-  if(S.players[S.current].eliminated){endGame(`${S.players[1-S.current].name} wins by elimination.`);return;}
+  if(S.players[S.current].eliminated){endGame(`${S.players[1-S.current].name} wins by elimination.`);render();return;}
   S.turn++;
   S.actions=2;
   // start-of-turn government effects for ruler
   startOfTurnEffects();
   showPassScreen();
-}
-function startOfTurnEffects(){
-  const me=cur();
-  if(S.government==="Dictatorship" && S.ruler===me.id){
-    const victim=opp(me.id);
-    if(victim.hand.length){const idx=Math.floor(Math.random()*victim.hand.length);const c=victim.hand.splice(idx,1)[0];me.hand.push(c);enforceHandLimit(me);logEv(`Dictatorship: ${me.name} seized a random card from ${victim.name}.`);}
-  }
-}
-function showPassScreen(){
-  render();
-  const sc=document.getElementById("passScreen");
-  document.getElementById("passTitle").textContent=`${cur().name}, it's your turn`;
-  document.getElementById("passSub").textContent=`Pass the device to ${cur().name}. The previous player's hand is now hidden.`;
-  sc.classList.remove("hidden");
-}
-
-/* ---------- end game ---------- */
-function endGame(reason){
-  if(S.over)return;
-  S.over=true;
-  render();
-  const sc=document.getElementById("overScreen");
-  const s0=score(S.players[0]), s1=score(S.players[1]);
-  let title="The world has ended", sub=reason;
-  let winner;
-  if(S.players[0].eliminated && !S.players[1].eliminated) winner=1;
-  else if(S.players[1].eliminated && !S.players[0].eliminated) winner=0;
-  else if(S.allied) winner=-1;
-  else winner = s0===s1 ? -1 : (s0>s1?0:1);
-  document.getElementById("overTitle").textContent=title;
-  document.getElementById("overSub").textContent=sub;
-  document.getElementById("overScores").innerHTML=
-    `<div style="font-size:15px;line-height:1.8">
-      ${S.players[0].name}: <b style="color:var(--gold)">${fmt(s0)}</b>${S.players[0].eliminated?" (out)":""}<br>
-      ${S.players[1].name}: <b style="color:var(--gold)">${fmt(s1)}</b>${S.players[1].eliminated?" (out)":""}
-     </div>
-     <h2 style="margin-top:14px">${winner===-1?"It's a shared fate — a draw":S.players[winner].name+" wins"}</h2>`;
-  sc.classList.remove("hidden");
 }

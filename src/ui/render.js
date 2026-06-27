@@ -1,13 +1,16 @@
-"use strict";
-/* Capitalist Apocalypse — render + modal dialogs
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — rendering & screens (browser only).
+   Reads the engine state and paints the board; shows the pass / game-over
+   overlays. The over-screen is driven purely by S.over / S.result, so any
+   engine path that ends the game surfaces correctly on the next render(). */
+import { TYPE_COLORS } from "../engine/data.js";
+import { S, opp, cur } from "../engine/state.js";
+import { score, orgValue, fmt } from "../engine/value.js";
+import { cardArt } from "./art.js";
+// flow imports render too — ESM handles the cycle because these are only
+// invoked at event time, never during module evaluation.
+import { doDraw, doOverthrow, endTurn, playCard } from "../flow.js";
 
-/* ============================================================
-   LOG + RENDER
-   ============================================================ */
-function logEv(html){S.log.unshift(html);if(S.log.length>40)S.log.pop();}
-function render(){
+export function render(){
   if(!S)return;
   // status bar
   const sb=document.getElementById("statusbar");
@@ -41,6 +44,8 @@ function render(){
   document.getElementById("drawBtn").onclick=()=>doDraw();
   document.getElementById("overthrowBtn").onclick=()=>doOverthrow();
   document.getElementById("endBtn").onclick=()=>endTurn();
+
+  if(S.over) showGameOver();
 }
 function seatEl(pid,isActive){
   const p=S.players[pid];
@@ -107,33 +112,25 @@ function handMini(c){
   return d;
 }
 
-/* ============================================================
-   MODAL HELPER (async)
-   ============================================================ */
-function modal({title,desc,options,cancel="Cancel",allowCancel=true}){
-  return new Promise(res=>{
-    const m=document.getElementById("modalMount");
-    const wrap=document.createElement("div");wrap.className="modal";
-    wrap.innerHTML=`<div class="box"><h3>${title}</h3>${desc?`<div class="desc">${desc}</div>`:""}
-      <div class="opts"></div>
-      <div class="modal-foot">${allowCancel?`<button class="btn ghost" style="color:var(--ink);border-color:var(--ink)">${cancel}</button>`:""}</div></div>`;
-    const opts=wrap.querySelector(".opts");
-    options.forEach(o=>{
-      const b=document.createElement("button");b.className="opt";
-      b.innerHTML=`<b>${o.label}</b>${o.sub?`<small>${o.sub}</small>`:""}`;
-      b.onclick=()=>{cleanup();res(o.value);};
-      opts.appendChild(b);
-    });
-    if(allowCancel) wrap.querySelector(".modal-foot .btn").onclick=()=>{cleanup();res(null);};
-    function cleanup(){wrap.remove();}
-    m.appendChild(wrap);
-  });
+/* ---------- overlay screens ---------- */
+export function showPassScreen(){
+  render();
+  const sc=document.getElementById("passScreen");
+  document.getElementById("passTitle").textContent=`${cur().name}, it's your turn`;
+  document.getElementById("passSub").textContent=`Pass the device to ${cur().name}. The previous player's hand is now hidden.`;
+  sc.classList.remove("hidden");
 }
-async function pickOrg(title,list,desc){
-  if(!list.length){await modal({title,desc:"No valid organisations.",options:[],allowCancel:true,cancel:"OK"});return null;}
-  const sel=await modal({title,desc,options:list.map(x=>({label:`${x.o.def.name} · ${SIZES[x.o.size]}`,sub:`${x.owner.name} · ${fmt(orgValue(x.o,x.owner))}`,value:x.o.uid})),});
-  if(sel==null)return null;
-  for(const x of list) if(x.o.uid===sel) return x;
-  return null;
+export function showGameOver(){
+  const sc=document.getElementById("overScreen");
+  const r=S.result||{reason:"",scores:[score(S.players[0]),score(S.players[1])],winner:-1};
+  const [s0,s1]=r.scores, winner=r.winner;
+  document.getElementById("overTitle").textContent="The world has ended";
+  document.getElementById("overSub").textContent=r.reason;
+  document.getElementById("overScores").innerHTML=
+    `<div style="font-size:15px;line-height:1.8">
+      ${S.players[0].name}: <b style="color:var(--gold)">${fmt(s0)}</b>${S.players[0].eliminated?" (out)":""}<br>
+      ${S.players[1].name}: <b style="color:var(--gold)">${fmt(s1)}</b>${S.players[1].eliminated?" (out)":""}
+     </div>
+     <h2 style="margin-top:14px">${winner===-1?"It's a shared fate — a draw":S.players[winner].name+" wins"}</h2>`;
+  sc.classList.remove("hidden");
 }
-function note(title,desc){return modal({title,desc,options:[],allowCancel:true,cancel:"OK"});}

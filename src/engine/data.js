@@ -1,13 +1,8 @@
-"use strict";
-/* Capitalist Apocalypse — card data & constants
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — card data & constants (DOM-free engine module).
+   Pure data, no imports. Safe to load in the browser or under Node. */
 
-/* ============================================================
-   CARD DATA  (sourced from Capitalist Apocalypse design doc)
-   ============================================================ */
-const GOVS = ["Theocracy","Dictatorship","Democracy","Communism","Monarchy","Anarchy"];
-const GOV_TEXT = {
+export const GOVS = ["Theocracy","Dictatorship","Democracy","Communism","Monarchy","Anarchy"];
+export const GOV_TEXT = {
   Theocracy:"No rule, all worship a divine presence. When it takes power, every player draws a Higher Power card.",
   Dictatorship:"The instigator rules and takes one random card from an opponent's hand at the start of each of their turns.",
   Democracy:"The ruler may draw up to 3 cards and resize one organisation once per turn.",
@@ -15,7 +10,7 @@ const GOV_TEXT = {
   Monarchy:"The ruler may freely pick card types. M. Smooth's value ×5; Mrs. Stone merges free.",
   Anarchy:"No rulers. Every takeover yields nothing extra here (1-for-1) but mergers are forbidden. NEF value ×5."
 };
-const HP = [
+export const HP = [
   ["Cryptodisaster","All tech companies become worthless."],
   ["Mass Robot Uprising","Tech sector counts as every sector (gains all sector bonuses & merges)."],
   ["Sea Rise","The world is underwater. No effect alone, but enables Dolphins; some USPs react."],
@@ -29,7 +24,7 @@ const HP = [
   ["Return of the Dinosaurs","Value of natural resources and perishables doubles."]
 ];
 // [name, text, qty]
-const ACTIONS = [
+export const ACTIONS = [
   ["Stock Crash","Decrease the size of a company by one level.",7],
   ["Build Stock","Increase the size of a company by one level.",9],
   ["Sneaky Corporate Deal","Swap a random card in your hand with a random card in your opponent's hand.",3],
@@ -62,7 +57,7 @@ const ACTIONS = [
   ["Big Surfboard","Negate Sea Rise — for you only. Played as a response.",1]
 ];
 // [name, type, sizeIdx, [S,E,G], merge, usp]
-const ORGS = [
+export const ORGS = [
   ["Tablets 'n' That","Tech",1,["£0bn","£5bn","£50bn"],"×1","Once per game you may block a proposed merger."],
   ["Big Ol' Oil 'n' Gas","Natural Resources",2,["£1bn","£7bn","£70bn"],"×1","Worthless under Big Freeze, Sea Rise, Big Burn or Dolphins."],
   ["BESCO","Perishables",2,["£0.1bn","£5bn","£20bn"],"×3","Can merge with any tech company."],
@@ -100,7 +95,7 @@ const ORGS = [
   ["Globocorp TM","Services",2,["£0bn","£1bn","£50bn"],"×1","Start-up/Enterprise merged in ×2; a Giant merged in ×-1."],
   ["Mortar & Brick Builders","Services",1,["£0bn","£0.5bn","£3bn"],"×2","If its owner holds all 5 other sectors, value ×5."]
 ];
-const TYPE_COLORS={Tech:"#2f6f6a","Natural Resources":"#7a5a2e",Perishables:"#c8462f",
+export const TYPE_COLORS={Tech:"#2f6f6a","Natural Resources":"#7a5a2e",Perishables:"#c8462f",
   Services:"#3a5a8c",Wellbeing:"#7a3a7a",Public:"#4a4a4a","Higher Power":"#8a1c4a",Action:"#a8761c"};
-const SIZES=["Start-up","Enterprise","Giant"];
-const SECTORS=["Tech","Natural Resources","Perishables","Services","Wellbeing","Public"];
+export const SIZES=["Start-up","Enterprise","Giant"];
+export const SECTORS=["Tech","Natural Resources","Perishables","Services","Wellbeing","Public"];

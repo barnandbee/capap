@@ -1,0 +1,10 @@
+{
+  "name": "capap",
+  "version": "0.1.0",
+  "description": "Capitalist Apocalypse — a satirical corporate card game",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

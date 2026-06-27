@@ -1,17 +1,14 @@
-"use strict";
-/* Capitalist Apocalypse — setup, dice roll & rules text
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — setup screen, opening dice roll & rules text (browser). */
+import { GOVS } from "./engine/data.js";
+import { newGame, startOfTurnEffects } from "./engine/index.js";
+import { showPassScreen } from "./ui/render.js";
 
-/* ============================================================
-   SETUP
-   ============================================================ */
-function buildGovGrid(){
+export function buildGovGrid(){
   const g=document.getElementById("govGrid");
   g.innerHTML=GOVS.map((n,i)=>`<div class="pick" id="gp${i}"><div class="num">${i+1}</div><div class="nm">${n}</div></div>`).join("");
 }
 let chosenGov=null, chosenRuler=null;
-function rollGov(){
+export function rollGov(){
   const die=document.getElementById("setupDie");
   let ticks=0;
   const faces=["⚀","⚁","⚂","⚃","⚄","⚅"];
@@ -34,17 +31,8 @@ function rollGov(){
     }
   },70);
 }
-function startGame(){
-  S=newState();
-  S.drawPile=shuffle(buildDeck());
-  // deal 5 each
-  for(let k=0;k<5;k++){S.players[0].hand.push(S.drawPile.shift());S.players[1].hand.push(S.drawPile.shift());}
-  S.government=chosenGov;
-  S.ruler=chosenRuler;
-  S.current = chosenRuler!=null ? chosenRuler : 0;
-  S.actions=2;
-  logEv(`The world begins under <b>${chosenGov}</b>${chosenRuler!=null?` — ${S.players[chosenRuler].name} rules`:""}.`);
-  if(chosenGov==="Communism")applyCommunism();
+export function startGame(){
+  newGame(chosenGov, chosenRuler);
   document.getElementById("setupScreen").classList.add("hidden");
   document.getElementById("game").classList.remove("hidden");
   document.getElementById("rulesText").innerHTML=RULES_HTML;
@@ -52,7 +40,7 @@ function startGame(){
   showPassScreen();
 }
 
-const RULES_HTML=`
+export const RULES_HTML=`
 <b>Turn:</b> two actions per turn. Each action is either <i>Draw a card</i> or <i>Play a card</i>; you may repeat. Overthrowing the government uses both actions.<br><br>
 <b>Hand:</b> start with 5, hold up to 7. Excess cards return to the bottom of the draw pile.<br><br>
 <b>Deck:</b> Action, Organisation and Higher Power cards are shuffled into one pile. Government is set by the opening dice roll and only changes via <i>Rebellion</i> or a successful coup (roll any double — its number, 1–6, installs that government).<br><br>

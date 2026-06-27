@@ -1,11 +1,9 @@
-"use strict";
-/* Capitalist Apocalypse — wire-up / bootstrap
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — browser entry point.
+   Loaded as <script type="module" src="src/main.js">; it pulls in the whole
+   ES-module graph (engine + ui + flow) and wires up the opening screen. */
+import { buildGovGrid, rollGov, startGame } from "./setup.js";
+import { render } from "./ui/render.js";
 
-/* ============================================================
-   WIRE UP
-   ============================================================ */
 buildGovGrid();
 document.getElementById("rollGovBtn").onclick=rollGov;
 document.getElementById("startGameBtn").onclick=startGame;

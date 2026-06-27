@@ -14,17 +14,26 @@ HTML file, no dependencies, no build step. Players pass one device between turns
 
 ## Playing locally
 
-No server or install needed — it's a static file:
+The game is built from ES modules, which browsers only load over http(s) — so serve
+the folder with any static server rather than double-clicking the file:
 
 ```bash
-# clone, then just open the file
-open index.html          # macOS
-xdg-open index.html      # Linux
-# or double-click index.html in a file browser
+# from the repo root
+python3 -m http.server 8000      # then open http://localhost:8000
+# or: npx serve .
 ```
 
-Everything (game data, engine, UI, and the generative card art) lives inline in
-`index.html`.
+No build step and no dependencies — the server just hands the static files to the
+browser, which loads the module graph from `src/`.
+
+## Testing
+
+The engine core is DOM-free and runs under Node, so it has real automated tests
+(no browser, no dependencies):
+
+```bash
+npm test          # runs node --test against tests/
+```
 
 ## How to play
 
@@ -65,33 +74,42 @@ works with classic "deploy from branch" Pages if you prefer that route.
 
 ## Project layout
 
-The game used to be one 1,300-line `index.html`. It's now split by concern into
-`src/` (loaded as ordered classic scripts that share one global scope — no build step):
+The game used to be one 1,300-line `index.html`. It's now ES modules under `src/`,
+split into a **DOM-free engine** and a **browser UI/flow** layer (no build step):
 
 ```
-index.html                    Markup + screens; links the stylesheet and src/ scripts
+index.html                    Markup + screens; loads src/main.js as a module
 src/styles.css                All styles (retro-parchment design system)
-src/data.js                   Card data & constants (pure: GOVS, HP, ACTIONS, ORGS …)
-src/deck.js                   Deck building (buildDeck, inst, shuffle)
-src/art.js                    Seeded Julia-set card art
-src/engine.js                 State shape + value engine (orgValue, score) — DOM-free
-src/ui.js                     render(), seat/card rendering, modal dialogs
-src/rules.js                  Counter system, turn flow, action/HP resolution, gov, endgame
+src/engine/                   DOM-FREE CORE — runs in the browser AND under Node
+  data.js                       Card data & constants (GOVS, HP, ACTIONS, ORGS …)
+  deck.js                       Deck building (buildDeck, inst, shuffle)
+  state.js                      Live game state `S`, newState, opp/cur, logEv
+  value.js                      Value engine (orgValue, score)
+  rules.js                      newGame, takeovers, merges, government, endgame, …
+  index.js                      Barrel: import the whole engine from one place
+src/ui/                       BROWSER ONLY
+  art.js                        Seeded Julia-set card art (<canvas>)
+  modal.js                      Async modal / pickOrg / note dialogs
+  render.js                     render(), board, pass & game-over screens
+src/flow.js                   Turn flow + counter orchestration (wires UI ↔ engine)
 src/setup.js                  Dice-roll setup, startGame(), in-game rules text
-src/main.js                   Wire-up / bootstrap (loads last)
-docs/HANDOFF.md               Deep architecture reference — state shape, turn flow,
-                              value engine, card formats, known gaps
-.github/workflows/pages.yml   GitHub Pages deployment
-.nojekyll                     Serve files as-is (no Jekyll processing)
+src/main.js                   Browser entry point (the module index.html loads)
+tests/engine.test.js          Node tests for the engine core (npm test)
+docs/HANDOFF.md               Deep architecture reference — state, value engine, cards
+.github/workflows/            pages.yml (deploy) · test.yml (run engine tests)
 ```
 
-> **Load order matters.** Because the scripts currently share a global scope rather
-> than using `import`/`export`, `index.html` loads them in dependency order with
-> `main.js` last. The next roadmap step converts these into true ES modules.
+**The boundary that matters:** nothing in `src/engine/` touches the DOM, so the entire
+game core runs under Node and is unit-tested directly. `src/flow.js` is where player
+choices (modals, the counter screen) meet the engine — the natural seam where an AI
+player will later call the same engine mutations a human does, minus the prompts.
 
-For anyone working on the engine, **`docs/HANDOFF.md` is the map**: it documents the
-global state object, the value engine, the counter system, every card format, and the
-current list of known gaps and house rules.
+`S` (the live game state) is exported as a live binding from `src/engine/state.js`;
+only that module reassigns it (via `newGame`/`setActiveState`), so every other module
+reads the current state through the import.
+
+For deeper internals — every card format, USP, and house rule — see
+**`docs/HANDOFF.md`**.
 
 ---
 
@@ -106,27 +124,25 @@ structure than one file can carry comfortably:
 - [ ] Persist a game in progress to `localStorage` so a reload doesn't lose it
 
 ### Medium term (the structural shift)
-- [x] **Extract the engine from the HTML.** The monolith is now split into `src/`
-  files by concern (data, deck, art, engine, ui, rules, setup) so the rules can evolve
-  without scrolling a 1,300-line file. Done as ordered classic scripts (zero logic
-  change, still runs by double-click and on Pages).
-- [ ] **Convert `src/` to true ES modules** with explicit `import`/`export`, and pull
-  the DOM-free core (state + value engine + rules) behind a clean, headless API so it
-  can run under Node. This enforces the engine/UI boundary that the AI work below needs.
-  *(Note: ES modules need a local dev server — e.g. `python3 -m http.server` — they
-  don't run from `file://`.)*
-- [ ] Add automated engine tests (value engine, merges, eliminations) so larger
-  refactors are safe, then optionally a small static bundler.
+- [x] **Extract the engine from the HTML.** The monolith was split into `src/` files
+  by concern (zero logic change).
+- [x] **Convert `src/` to true ES modules** with explicit `import`/`export`, and pull
+  the DOM-free core (`src/engine/`) behind a clean, headless API that runs under Node.
+  This enforces the engine/UI boundary the AI work below needs.
+- [x] **Automated engine tests** (`tests/engine.test.js`, run via `npm test` and in
+  CI) covering the value engine, merges, takeovers, Communism, eliminations and the
+  live-state binding.
 
 ### Long term (the headline features)
 - [ ] **3+ player support.** State and rendering are already parameterised by player id;
   the work is generalising opponent targeting (`opp()` → a player picker) across the
   counter/takeover/merge flows.
-- [ ] **Computer (AI) players**, so a single human can play solo against bots. This is
-  the main reason the engine needs to come out of the UI layer: a headless engine with a
-  clean "given this state, choose a legal move" interface lets an AI drive the same API a
-  human does. Start with a heuristic bot (maximise portfolio value, counter when
-  threatened) before anything fancier.
+- [ ] **Computer (AI) players**, so a single human can play solo against bots. The
+  groundwork is now in place: the engine is headless and tested, and `src/flow.js` is
+  the seam where decisions are made. The next concrete step is a move-generation layer
+  (`legalMoves(state)` + `applyMove(state, move)`) over the engine, after which a
+  heuristic bot (maximise portfolio value, counter when threatened) can drive the same
+  API a human does before anything fancier.
 
 See `docs/HANDOFF.md` §11 and §15 for the detailed gap list and suggested priorities.
 

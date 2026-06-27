@@ -70,18 +70,10 @@
 <div id="modalMount"></div>
 
 <!--
-  The game was extracted from a single inline <script> into the modules below.
-  They are loaded as classic scripts and share one global scope, so load ORDER
-  matters: data/constants first, bootstrap (main.js) last. See README "Roadmap"
-  for the planned conversion to true ES modules with a headless engine.
+  ES modules. main.js pulls in the whole graph: src/engine/ (DOM-free core,
+  also runnable under Node — see tests/), src/ui/, and src/flow.js.
+  Note: ES modules require http(s); serve locally with e.g. `python3 -m http.server`.
 -->
-<script src="src/data.js"></script>
-<script src="src/deck.js"></script>
-<script src="src/art.js"></script>
-<script src="src/engine.js"></script>
-<script src="src/ui.js"></script>
-<script src="src/rules.js"></script>
-<script src="src/setup.js"></script>
-<script src="src/main.js"></script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>

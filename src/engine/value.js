@@ -1,44 +1,21 @@
-"use strict";
-/* Capitalist Apocalypse — state + value engine
-   Part of the multi-file split (see README). Loaded as a classic <script>;
-   all modules share one global scope until the planned ES-module step. */
+/* Capitalist Apocalypse — value engine (DOM-free engine module).
+   orgValue() / score() compute live £bn values from the current state. */
+import { SECTORS } from "./data.js";
+import { S } from "./state.js";
 
-/* ============================================================
-   STATE
-   ============================================================ */
-let S=null;
-function newState(){
-  return {
-    players:[
-      {id:0,name:"Player 1",hand:[],portfolio:[],eliminated:false,negatedHP:new Set(),blindSpotAgainst:null},
-      {id:1,name:"Player 2",hand:[],portfolio:[],eliminated:false,negatedHP:new Set(),blindSpotAgainst:null}
-    ],
-    drawPile:[], discard:[], activeHP:[], government:null, ruler:null,
-    current:0, actions:2, turn:1, log:[],
-    cryptoPlayed:false, anyHPPlayed:false, allied:false,
-    dolphinsCountdown:null, // turns left after dolphins
-    over:false
-  };
-}
-const opp = p => S.players[1-p];
-const cur = () => S.players[S.current];
-
-/* ============================================================
-   VALUE ENGINE
-   ============================================================ */
-function parseV(s){return parseFloat(String(s).replace("£","").replace("bn",""));}
-function fmt(n){
+export function parseV(s){return parseFloat(String(s).replace("£","").replace("bn",""));}
+export function fmt(n){
   const r=Math.round(n*1000)/1000;
   return "£"+ (Object.is(r,-0)?0:r) +"bn";
 }
-function hpActiveFor(name,player){
+export function hpActiveFor(name,player){
   return S.activeHP.some(h=>h.name===name) && !player.negatedHP.has(name);
 }
-function hasAllOtherSectors(player){
+export function hasAllOtherSectors(player){
   const set=new Set(player.portfolio.map(o=>o.type));
   return SECTORS.filter(s=>s!=="Services").every(s=>set.has(s));
 }
-function orgValue(o,player){
+export function orgValue(o,player){
   let base = parseV(o.def.values[o.size]) * (o.mergeBonus||1);
   let v = base;
   const g = S.government;
@@ -70,7 +47,7 @@ function orgValue(o,player){
   if(o.def.name==="The Great Health Service" && v>200) v=200; // card states £200bn maximum
   return v;
 }
-function score(player){
+export function score(player){
   if(S.allied){
     const all=[...S.players[0].portfolio,...S.players[1].portfolio];
     return all.reduce((t,o)=>t+orgValue(o,player),0);
